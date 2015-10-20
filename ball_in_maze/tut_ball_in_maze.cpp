@@ -23,32 +23,142 @@
 //#if PANDA_NUMERIC_VERSION >= 1008000
 #define Colorf LColorf
 //#endif
-
-
 #include "pandaFramework.h"
 #include "world.h"
 
 #include <visp_naoqi/vpNaoqiRobot.h>
+#include <visp/vpPoseVector.h>
+#include <visp/vpTime.h>
+
+
+
+
+vpPoseVector cMt;
+#ifdef VISP_HAVE_PTHREAD
+pthread_mutex_t m_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+char **gargv;
+int gargc;
+
+
+struct arg_holder {
+    int argc;
+    char ** argv;
+};
+
+
+void * grab_compute_pose(void *);
+void * ar_panda(void *arg);
+
+
+void *grab_compute_pose(void *)
+{
+  float count = 0.0;
+
+  for ( ; ; ){
+
+    vpPoseVector _cMt(0.0,0.0,0.0,0.0,0.0, count);
+    #ifdef VISP_HAVE_PTHREAD
+    pthread_mutex_lock(&m_mutex);
+    #endif
+
+    cMt = _cMt;
+
+    #ifdef VISP_HAVE_PTHREAD
+    pthread_mutex_unlock(&m_mutex);
+    #endif
+
+   count += 0.1;
+
+
+
+   _cMt.print();
+
+    vpTime::sleepMs(100);
+
+  }
+
+   pthread_exit(NULL);
+}
+
+
+void *ar_panda(void * arg)
+{
+
+struct arg_holder arg_struct = *(struct arg_holder *)arg;;
+
+
+
+  // setup Panda3d
+  PandaFramework pandaFramework;
+  pandaFramework.open_framework(arg_struct.argc, arg_struct.argv);
+  PT(WindowFramework) windowFrameworkPtr = pandaFramework.open_window();
+  if(windowFrameworkPtr == NULL)
+  {
+    nout << "ERROR: could not open the WindowFramework." << endl;
+    return 0; // error
+  }
+
+  // Finally, create an instance of our class and start 3d rendering
+  World world(windowFrameworkPtr);
+
+  // Run the simulation
+  pandaFramework.main_loop();
+
+  std::cout << "############################END THREAD PANDA" <<std::endl;
+  // quit Panda3d
+  pandaFramework.close_framework();
+  free(arg);
+
+
+
+  pthread_exit(NULL);
+
+}
+
+
+
+
 
 int main(int argc, char *argv[])
-   {
-   // setup Panda3d
-   PandaFramework pandaFramework;
-   pandaFramework.open_framework(argc, argv);
-   PT(WindowFramework) windowFrameworkPtr = pandaFramework.open_window();
-   if(windowFrameworkPtr == NULL)
-      {
-      nout << "ERROR: could not open the WindowFramework." << endl;
-      return 1; // error
-      }
+{
 
-   // Finally, create an instance of our class and start 3d rendering
-   World world(windowFrameworkPtr);
+#ifdef VISP_HAVE_PTHREAD
+    pthread_t thread_romeo;
+    pthread_t thread_maze;
 
-   // Run the simulation
-   pandaFramework.main_loop();
 
-   // quit Panda3d
-   pandaFramework.close_framework();
-   return 0; // success
-   }
+    struct arg_holder * arg_struct = new arg_holder;
+    arg_struct->argc = argc;
+    arg_struct->argv = argv;
+
+
+    pthread_create(&thread_romeo, NULL, &grab_compute_pose, NULL);
+    pthread_create(&thread_maze, NULL, &ar_panda, arg_struct);
+
+//  // setup Panda3d
+//  PandaFramework pandaFramework;
+//  pandaFramework.open_framework(argc, argv);
+//  PT(WindowFramework) windowFrameworkPtr = pandaFramework.open_window();
+//  if(windowFrameworkPtr == NULL)
+//  {
+//    nout << "ERROR: could not open the WindowFramework." << endl;
+//    return 1; // error
+//  }
+
+//  // Finally, create an instance of our class and start 3d rendering
+//  World world(windowFrameworkPtr);
+
+//  // Run the simulation
+//  pandaFramework.main_loop();
+  pthread_join(thread_maze, 0);
+  //pthread_cancel(thread_romeo);
+  pthread_join(thread_romeo, 0);
+
+
+pthread_mutex_destroy(&m_mutex);
+#endif
+//  // quit Panda3d
+//  pandaFramework.close_framework();
+  return 0; // success
+}

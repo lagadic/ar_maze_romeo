@@ -21,6 +21,12 @@
 #include "filename.h"
 #include "executionEnvironment.h"
 
+#include <visp/vpPoseVector.h>
+
+extern vpPoseVector cMt;
+extern pthread_mutex_t m_mutex ;
+
+
 World::World(WindowFramework* windowFrameworkPtr)
    : UP(0,0,1),
      m_windowFrameworkPtr(windowFrameworkPtr)
@@ -371,31 +377,21 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
    // Get a MouseWatcher from the created window
     // will be used to move nodes arround
    //m_windowFrameworkPtr->setup_trackball();
-    NodePath mouseNode = m_windowFrameworkPtr->get_mouse();
+  //  NodePath mouseNode = m_windowFrameworkPtr->get_mouse();
 
+  // m_mazeNp.set_r( m_windowFrameworkPtr->get_graphics_window()->get_pointer(0).get_x()/ 10 -40);
+  // m_mazeNp.set_p( m_windowFrameworkPtr->get_graphics_window()->get_pointer(0).get_y()/ 10 -30);
 
-    //std::cout<<"get_num_input_devices():" <<m_windowFrameworkPtr->get_num_input_devices() <<std::endl;
+#ifdef VISP_HAVE_PTHREAD
+pthread_mutex_lock(&m_mutex);
+#endif
 
-//    if(!mouseNode.is_empty())
-//    {
+    m_mazeNp.set_r(cMt[5]*100);
 
-//       MouseWatcher* mouseWatcher = dynamic_cast<MouseWatcher*>(mouseNode.node());
+#ifdef VISP_HAVE_PTHREAD
+pthread_mutex_unlock(&m_mutex);
+#endif
 
-
-//       std::cout<<"HasMouse:" << mouseWatcher->has_mouse() <<std::endl;
-//       std::cout<<"x= "<< mouseWatcher->get_mouse_x() * 10<<std::endl;
-//       std::cout<<"y= "<< mouseWatcher->get_mouse_y() * 10<<std::endl;
-
-//       if(mouseWatcher != NULL && mouseWatcher->has_mouse())
-//       {
-//          m_mazeNp.set_x(mouseWatcher->get_mouse_x() * 10);
-//          m_mazeNp.set_y(mouseWatcher->get_mouse_y() * 10);
-//       }
-//}
-
-
-   m_mazeNp.set_r( m_windowFrameworkPtr->get_graphics_window()->get_pointer(0).get_x()/ 10 -40);
-   m_mazeNp.set_p( m_windowFrameworkPtr->get_graphics_window()->get_pointer(0).get_y()/ 10 -30);
 
    // Finally, we move the ball
    // Update the velocity based on acceleration
@@ -502,7 +498,8 @@ void World::lose_game(const CollisionEntry& entry)
 
 void World::sys_exit(const Event* eventPtr, void* dataPtr)
    {
-   exit(0);
+
+     exit(0);
    }
 
 AsyncTask::DoneStatus World::call_traverse(GenericAsyncTask *taskPtr, void *dataPtr)
