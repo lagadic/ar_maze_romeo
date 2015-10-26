@@ -22,24 +22,20 @@
 
 //#if PANDA_NUMERIC_VERSION >= 1008000
 #define Colorf LColorf
+#define PNG_SKIP_SETJMP_CHECK
 //#endif
 #include "pandaFramework.h"
 #include "world.h"
-
-#include <visp_naoqi/vpNaoqiRobot.h>
-#include <visp/vpPoseVector.h>
-#include <visp/vpTime.h>
-
+#include "romeo_grabber.h"
 
 
 
 vpPoseVector cMt;
 #ifdef VISP_HAVE_PTHREAD
 pthread_mutex_t m_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  condition_var = PTHREAD_COND_INITIALIZER;
 #endif
-char **gargv;
-int gargc;
-
+bool valid_cMt = 0;
 
 struct arg_holder {
     int argc;
@@ -47,39 +43,39 @@ struct arg_holder {
 };
 
 
-void * grab_compute_pose(void *);
+//void * grab_compute_pose(void *);
 void * ar_panda(void *arg);
 
 
-void *grab_compute_pose(void *)
-{
-  float count = 0.0;
+//void *grab_compute_pose(void *)
+//{
+//  float count = 0.0;
 
-  for ( ; ; ){
+//  for ( ; ; ){
 
-    vpPoseVector _cMt(0.0,0.0,0.0,0.0,0.0, count);
-    #ifdef VISP_HAVE_PTHREAD
-    pthread_mutex_lock(&m_mutex);
-    #endif
+//    vpPoseVector _cMt(0.0,0.0,0.0,0.0,0.0, count);
+//    #ifdef VISP_HAVE_PTHREAD
+//    pthread_mutex_lock(&m_mutex);
+//    #endif
 
-    cMt = _cMt;
+//    cMt = _cMt;
 
-    #ifdef VISP_HAVE_PTHREAD
-    pthread_mutex_unlock(&m_mutex);
-    #endif
+//    #ifdef VISP_HAVE_PTHREAD
+//    pthread_mutex_unlock(&m_mutex);
+//    #endif
 
-   count += 0.1;
+//   count += 0.1;
 
 
 
-   _cMt.print();
+//   _cMt.print();
 
-    vpTime::sleepMs(100);
+//    vpTime::sleepMs(100);
 
-  }
+//  }
 
-   pthread_exit(NULL);
-}
+//   pthread_exit(NULL);
+//}
 
 
 void *ar_panda(void * arg)
@@ -152,11 +148,12 @@ int main(int argc, char *argv[])
 //  // Run the simulation
 //  pandaFramework.main_loop();
   pthread_join(thread_maze, 0);
-  //pthread_cancel(thread_romeo);
-  pthread_join(thread_romeo, 0);
+  pthread_cancel(thread_romeo);
+  //pthread_join(thread_romeo, 0);
 
 
 pthread_mutex_destroy(&m_mutex);
+
 #endif
 //  // quit Panda3d
 //  pandaFramework.close_framework();

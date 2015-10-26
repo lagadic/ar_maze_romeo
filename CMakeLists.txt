@@ -16,10 +16,6 @@ ENDIF (PYTHONLIBS_FOUND)
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-# Find the Panda3D modules
-find_package(Panda3D REQUIRED)
-
-
 #--------------------------------------------------------------------
 # Add ViSP dependencies
 #--------------------------------------------------------------------
@@ -27,6 +23,16 @@ FIND_PACKAGE(VISP REQUIRED)
 IF(VISP_FOUND)
   INCLUDE(${VISP_USE_FILE})
 ENDIF(VISP_FOUND)
+
+find_package(visp_naoqi REQUIRED)
+
+find_package(ROMEO_TK REQUIRED)
+
+# Find the Panda3D modules
+find_package(Panda3D REQUIRED)
+
+
+
 
 FIND_PACKAGE (Threads)
 

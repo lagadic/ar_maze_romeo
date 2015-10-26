@@ -25,7 +25,7 @@ class World
    static const int MAX_SPEED    =  5; // Max speed in ft/sec
    static const int MAX_SPEED_SQ = 25; // Squared to make it easier to use lengthSquared
                                        // Instead of length
-   const LVecBase3f UP; // We need this vector a lot, so its better to just have one
+    LVecBase3f UP; // We need this vector a lot, so its better to just have one
                         // instead of creating a new one every time we need it
 
    void start();
@@ -46,6 +46,7 @@ class World
    PT(CollisionRay) m_ballGroundRayPtr;
    PT(CollisionNode) m_ballGroundColPtr;
    PT(CollisionHandlerQueue) m_cHandlerPtr;
+   NodePath cameraNp;
    NodePath m_titleNp;
    NodePath m_instructionsNp;
    NodePath m_mazeNp;
@@ -60,6 +61,8 @@ class World
    LVecBase3f m_ballV;
    LVecBase3f m_accelV;
    double m_last;
+   bool m_init;
+
    };
 
 #endif /* WORLD_H_ */
