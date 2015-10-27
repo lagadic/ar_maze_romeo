@@ -260,8 +260,8 @@ void World::start()
   pthread_cond_wait( &condition_var, &m_mutex );
   vpRotationMatrix R(cMt);
   vpRzyxVector r(R);
- // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
-    m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
 
 
   pthread_mutex_unlock(&m_mutex);
@@ -274,13 +274,13 @@ void World::start()
   UP[1]= abs(M[1][2]);
   UP[2]= abs(M[2][2]);
 
-//    std::cout << "Z-pic: " << std::endl
-//              <<  M[0][0] << " " <<  M[0][1] << " " << M[0][2] << " " << M[0][3] << std::endl;
-//    std::cout <<  M[1][0] << " " <<  M[1][1] << " " << M[1][2] << " " << M[1][3] << std::endl;
-//    std::cout <<  M[2][0] << " " <<  M[2][1] << " " << M[2][2] << " " << M[2][3] << std::endl;
-//    std::cout <<  M[3][0] << " " <<  M[3][1] << " " << M[3][2] << " " << M[3][3] << std::endl;
+  //    std::cout << "Z-pic: " << std::endl
+  //              <<  M[0][0] << " " <<  M[0][1] << " " << M[0][2] << " " << M[0][3] << std::endl;
+  //    std::cout <<  M[1][0] << " " <<  M[1][1] << " " << M[1][2] << " " << M[1][3] << std::endl;
+  //    std::cout <<  M[2][0] << " " <<  M[2][1] << " " << M[2][2] << " " << M[2][3] << std::endl;
+  //    std::cout <<  M[3][0] << " " <<  M[3][1] << " " << M[3][2] << " " << M[3][3] << std::endl;
 
-//  std::cout << "Z-pic: " <<  M[0][2] << " " <<  M[1][2] << " " << M[2][2] << std::endl;
+  //  std::cout << "Z-pic: " <<  M[0][2] << " " <<  M[1][2] << " " << M[2][2] << std::endl;
 
   // The maze model also has a locator in it for where to start the ball
   // To access it we use the find command
@@ -450,8 +450,8 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
 
   // std::cout << "R: " << vpMath::deg(r[0])<< ", " <<vpMath::deg(r[1])<< ", " <<vpMath::deg(r[2]) << std::endl;
 
- // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
-    m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
 
 
   //m_mazeNp.set_pos_hpr_scale(cMt[0],cMt[2],cMt[1],vpMath::deg(cMt[3]),vpMath::deg(cMt[5]),-vpMath::deg(cMt[4]),1.0,1.0,1.0);
