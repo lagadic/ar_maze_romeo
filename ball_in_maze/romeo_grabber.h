@@ -28,6 +28,7 @@
 
 
 typedef enum {
+  LearnPoseTemplate,
   FindTemplate,
   CalibrateRigthArm,
   CalibrateLeftArm,
@@ -38,15 +39,17 @@ typedef enum {
 } State_t;
 
 
+struct arg_holder {
+  int argc;
+  char ** argv;
+};
 
 
 extern vpPoseVector cMt;
 extern pthread_mutex_t m_mutex;
 extern pthread_cond_t  condition_var;
-
-
-
-
+extern pthread_mutex_t m_mutex_rg;
+extern bool m_restart_game;
 
 /*!
   Check the validity of the pose of the box.
@@ -89,8 +92,10 @@ void printPose(const std::string &text, const vpHomogeneousMatrix &cMo)
 
 
 
-void *grab_compute_pose(void *)
+void *grab_compute_pose(void * arg)
 {
+
+  struct arg_holder arg_struct = *(struct arg_holder *)arg;
 
   try
   {
@@ -98,18 +103,21 @@ void *grab_compute_pose(void *)
     int opt_cam = 0;
     std::string opt_box_name = "star_wars_pic";
     std::string opt_data_folder = std::string(ROMEOTK_DATA_FOLDER);
+    bool opt_learn_pose = false;
 
-    //  for (unsigned int i=0; i<argc; i++) {
-    //      if (std::string(argv[i]) == "--box-name")
-    //        opt_box_name = std::string(argv[i+1]);
-    //      else if (std::string(argv[i]) == "--data-folder")
-    //        opt_data_folder = std::string(argv[i+1]);
-    //      else if (std::string(argv[i]) == "--help") {
-    //        std::cout << "Usage: " << argv[0] << "[--box-name] [--data-folder]" << std::endl;
+    for (unsigned int i=0; i<arg_struct.argc; i++) {
+      if (std::string(arg_struct.argv[i]) == "--pic-name")
+        opt_box_name = std::string(arg_struct.argv[i+1]);
+      else if (std::string(arg_struct.argv[i]) == "--data-folder")
+        opt_data_folder = std::string(arg_struct.argv[i+1]);
+      else if (std::string(arg_struct.argv[i]) == "--init-pose")
+        opt_learn_pose = true;
+      else if (std::string(arg_struct.argv[i]) == "--help") {
+        std::cout << "Usage: " << arg_struct.argv[0] << "[--box-name] [--data-folder]" << std::endl;
 
-    //        return 0;
-    //      }
-    //    }
+        return 0;
+      }
+    }
 
     vpNaoqiGrabber g;
     g.setCamera(opt_cam); // left camera
@@ -143,6 +151,24 @@ void *grab_compute_pose(void *)
 
     std::cout << learning_data_file_name << std::endl;
 
+
+    vpHomogeneousMatrix cMt_initial;
+
+
+    std::string learned_cMt_filename = "poses.xml";
+    std::string learned_cMt_path = box_folder + "poses/"; // This file contains the following two transf. matrix:
+    std::string name_initial_cMt = "initial_cMt";
+
+    if (!opt_learn_pose) {
+      vpXmlParserHomogeneousMatrix pm; // Create a XML parser
+
+      if (pm.parse(cMt_initial, learned_cMt_path  + learned_cMt_filename, name_initial_cMt) != vpXmlParserHomogeneousMatrix::SEQUENCE_OK) {
+        std::cout << "Cannot found the homogeneous matrix named " << name_initial_cMt<< "." << std::endl;
+        return 0;
+      }
+      else
+        std::cout << "Homogeneous matrix " << name_initial_cMt <<": " << std::endl << cMt_initial << std::endl;
+    }
 
     // Initialize the template tracker
     bool status_template_tracker;
@@ -369,8 +395,8 @@ void *grab_compute_pose(void *)
     vpHomogeneousMatrix M_offset;
     M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, 0.0, 0.0) ;
 
-    double d_t = 0.01;
-    double d_r = 0.0;
+    double d_t = 0.0;
+    double d_r = 0.15;
 
     bool first_time_box_pose = true;
 
@@ -380,19 +406,19 @@ void *grab_compute_pose(void *)
     vpMouseButton::vpMouseButtonType button;
 
     vpHomogeneousMatrix elMb; // Homogeneous matrix from right wrist roll to box
-    vpHomogeneousMatrix cMo_t_d; // Desired box final pose
+    vpHomogeneousMatrix cMo_t_d = cMt_initial; // Desired box final pose
 
     State_t state;
-    state = FindTemplate;
+
+    if (opt_learn_pose)
+      state = LearnPoseTemplate;
+    else
+      state = FindTemplate;
 
 
     AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(-4.6), vpMath::rad(15.0), vpMath::rad(6.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
     float fractionMaxSpeed  = 0.1f;
     robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
-
-
-
-
 
     while(1)
     {
@@ -410,22 +436,30 @@ void *grab_compute_pose(void *)
 
       if (ret)
       {
+        //        if (s == "r")
+        //        {
+        //          M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, 0.0, 0.0) ;
+
+        //          d_t = 0.0;
+        //          d_r = 0.15;
+        //          std::cout << "Rotation mode. " << std::endl;
+        //        }
+
+        //        if (s == "t")
+        //        {
+        //          M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, 0.0, 0.0) ;
+
+        //          d_t = 0.01;
+        //          d_r = 0.0;
+        //          std::cout << "Translation mode. " << std::endl;
+        //        }
         if (s == "r")
         {
-          M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, 0.0, 0.0) ;
-
-          d_t = 0.0;
-          d_r = 0.15;
-          std::cout << "Rotation mode. " << std::endl;
-        }
-
-        if (s == "t")
-        {
-          M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, 0.0, 0.0) ;
-
-          d_t = 0.01;
-          d_r = 0.0;
-          std::cout << "Translation mode. " << std::endl;
+          cMo_t_d = cMt_initial;
+          pthread_mutex_lock(&m_mutex_rg);
+          m_restart_game = true;
+          pthread_mutex_unlock(&m_mutex_rg);
+          first_time_box_pose = true;
         }
 
         if (s == "h")
@@ -483,6 +517,7 @@ void *grab_compute_pose(void *)
         }
 
         cMo_t_d = cMo_t_d * M_offset;
+        M_offset.setIdentity();
 
 
       }
@@ -528,14 +563,32 @@ void *grab_compute_pose(void *)
 
       }
 
+      if (state == LearnPoseTemplate &&  status_template_tracker )
+      {
+        vpDisplay::displayText(I, vpImagePoint(10,10), "Left click to save the pose", vpColor::red);
+        printPose("cMo qrcode: ", cMo_t);
+
+        if (click_done && button == vpMouseButton::button1 ) {
+          vpXmlParserHomogeneousMatrix p; // Create a XML parser
+
+          vpHomogeneousMatrix belin(-0.009528060139, 0.0, 0.3726390759, vpMath::rad(135.7879077), vpMath::rad(0.0), vpMath::rad(-8.483044353));
+
+          if (p.save(belin, learned_cMt_path + "/" + learned_cMt_filename , name_initial_cMt) != vpXmlParserHomogeneousMatrix::SEQUENCE_OK)
+          {
+            std::cout << "Cannot save the Homogeneous matrix" << std::endl;
+            return 0;
+          }
+          printPose("The desired template pose: ", cMt);
+          std::cout << "is saved in " << learned_cMt_path + learned_cMt_filename << std::endl;
+          return 0;
+        }
+      }
+
 
 
       if (state == FindTemplate &&  status_template_tracker )
       {
-
-
         if (click_done && button == vpMouseButton::button1 ) {
-
 
           angles_head      = AL::ALValue::array(vpMath::rad(-15.2), vpMath::rad(17.6), vpMath::rad(10.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
           fractionMaxSpeed  = 0.01f;
@@ -543,9 +596,7 @@ void *grab_compute_pose(void *)
 
           click_done = false;
           state = CalibrateRigthArm;
-
         }
-
       }
 
 
@@ -579,13 +630,10 @@ void *grab_compute_pose(void *)
           float fractionMaxSpeed  = 0.01f;
           robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
 
-
           click_done = false;
-
         }
 
       }
-
 
       if (state == CalibrateLeftArm && status_template_tracker && status_hand_tracker[index_hand] )
       {
@@ -607,25 +655,21 @@ void *grab_compute_pose(void *)
 
         // vpDisplay::displayFrame(I, cMo_hand[index_hand] * (cMo_t.inverse() *  cMo_hand[index_hand]).inverse() , cam, 0.04, vpColor::green, 1);
 
-
         if (click_done && button == vpMouseButton::button1 ) {
 
           box_Ve_Arm[index_hand].buildFrom(box_Me_Arm);
           state = WaitPreGrasp;
           click_done = false;
           //AL::ALValue names_head     = AL::ALValue::array("NeckYaw","NeckPitch","HeadPitch","HeadRoll","LEyeYaw", "LEyePitch","LEyeYaw", "LEyePitch" );
-          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(-6.8), vpMath::rad(16.6), vpMath::rad(10.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
+          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(-4.2), vpMath::rad(14.9), vpMath::rad(5.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
           float fractionMaxSpeed  = 0.01f;
           robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
         }
-
       }
-
 
       if (state == WaitPreGrasp  )
       {
         index_hand = 1;
-
 
         if (click_done && button == vpMouseButton::button1 ) {
 
@@ -636,27 +680,25 @@ void *grab_compute_pose(void *)
       }
 
 
-
       if (state == PreGraps && status_template_tracker )
       {
 
         vpDisplay::displayText(I, vpImagePoint(I.getHeight() - 10, 10), "Left click to start the servo", vpColor::red);
-
-        if (first_time_box_pose)
-        {
-          // Compute desired box position cMo_t_d
-          cMo_t_d = cMo_t * M_offset;
-          pthread_mutex_lock(&m_mutex);
-          pthread_cond_signal( &condition_var );
-          pthread_mutex_unlock(&m_mutex);
-          first_time_box_pose = false;
-        }
-
+        //        if (first_time_box_pose)
+        //        {
+        //          // Compute desired box position cMo_t_d
+        //          //cMo_t_d = cMo_t * M_offset;
+        //          pthread_mutex_lock(&m_mutex);
+        //          pthread_cond_signal( &condition_var );
+        //          pthread_mutex_unlock(&m_mutex);
+        //          first_time_box_pose = false;
+        //        }
         vpDisplay::displayFrame(I, cMo_t_d , cam, 0.05, vpColor::none, 3);
         vpDisplay::displayFrame(I, cMo_t *box_Mhand[1] , cam, 0.05, vpColor::none, 3);
         vpDisplay::displayFrame(I, cMo_t *box_Mhand[0] , cam, 0.05, vpColor::none, 3);
 
         if (click_done && button == vpMouseButton::button1 ) {
+
 
           state = VSBox;
           click_done = false;
@@ -668,6 +710,16 @@ void *grab_compute_pose(void *)
 
       if (state == VSBox)
       {
+        //        if (first_time_box_pose)
+        //        {
+        //          vpTime::sleepMs(500);
+        //          // Compute desired box position cMo_t_d
+        //         // cMo_t_d = cMo_t * M_offset;
+        //          pthread_mutex_lock(&m_mutex);
+        //          pthread_cond_signal( &condition_var );
+        //          pthread_mutex_unlock(&m_mutex);
+        //          first_time_box_pose = false;
+        //        }
 
         //Get Actual position of the arm joints
         q[0] = robot.getPosition(jointNames_arm[0]);
@@ -695,7 +747,7 @@ void *grab_compute_pose(void *)
             servo_larm[i]->m_task.set_cVe(box_Ve_Arm[i]);
 
             box_dMbox[i] = cMo_t_d.inverse() * cMo_t;
-            printPose("box_dMbox: ", box_dMbox[i]);
+            //printPose("box_dMbox: ", box_dMbox[i]);
             servo_larm[i]->setCurrentFeature(box_dMbox[i]) ;
 
             vpDisplay::displayFrame(I, cMo_t_d , cam, 0.05, vpColor::none, 3);
@@ -812,25 +864,32 @@ void *grab_compute_pose(void *)
             double theta_error_grasp;
             vpColVector u_error_grasp;
             tu_error_grasp.extract(theta_error_grasp, u_error_grasp);
-            std::cout << "error: " << sqrt(t_error_grasp.sumSquare()) << " " << vpMath::deg(theta_error_grasp) << std::endl;
+            //std::cout << "error: " << sqrt(t_error_grasp.sumSquare()) << " " << vpMath::deg(theta_error_grasp) << std::endl;
 
 
             //                    if (cpt_iter_servo_grasp[0] > 100) {
 
             //                        vpDisplay::displayText(I, vpImagePoint(10,10), "Cannot converge. Click to continue", vpColor::red);
             //                    }
-            //                    double error_t_treshold = 0.007;
+            double error_t_treshold = 0.007;
 
-            //                    if ( (sqrt(t_error_grasp.sumSquare()) < error_t_treshold) && (theta_error_grasp < vpMath::rad(3)) || (click_done && button == vpMouseButton::button1 /*&& cpt_iter_servo_grasp > 150*/) )
-            //                    {
-            //                        robot.stop(jointArmsNames_tot);
+            if ( (sqrt(t_error_grasp.sumSquare()) < error_t_treshold) && (theta_error_grasp < vpMath::rad(3)) && first_time_box_pose)
+            {
+              std::cout << "Reached initial pose. The game is starting!" << std::endl;
+              robot.stop(jointArmsNames_tot);
 
-            //                        state = End;
-            //                        grasp_servo_converged[0] = true;
+              vpTime::sleepMs(500);
+              // Compute desired box position cMo_t_d
+              // cMo_t_d = cMo_t * M_offset;
+              pthread_mutex_lock(&m_mutex);
+              pthread_cond_signal( &condition_var );
+              pthread_mutex_unlock(&m_mutex);
+              first_time_box_pose = false;
+              // grasp_servo_converged[0] = true;
 
-            //                        if (click_done && button == vpMouseButton::button1)
-            //                            click_done = false;
-            //                    }
+              //              if (click_done && button == vpMouseButton::button1)
+              //                click_done = false;
+            }
 
 
           }
@@ -858,7 +917,7 @@ void *grab_compute_pose(void *)
       if (click_done && button == vpMouseButton::button3)
         break;
 
-      std::cout << "Loop time: " << vpTime::measureTimeMs() - t << " ms" << std::endl;
+      //std::cout << "Loop time: " << vpTime::measureTimeMs() - t << " ms" << std::endl;
 
     }
     robot.stop(jointArmsNames_tot);

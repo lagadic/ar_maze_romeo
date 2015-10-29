@@ -34,13 +34,13 @@ vpPoseVector cMt;
 #ifdef VISP_HAVE_PTHREAD
 pthread_mutex_t m_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  condition_var = PTHREAD_COND_INITIALIZER;
+// Restart game
+pthread_mutex_t m_mutex_rg = PTHREAD_MUTEX_INITIALIZER;
+bool m_restart_game = false;
+
 #endif
 bool valid_cMt = 0;
 
-struct arg_holder {
-    int argc;
-    char ** argv;
-};
 
 
 //void * grab_compute_pose(void *);
@@ -81,9 +81,7 @@ void * ar_panda(void *arg);
 void *ar_panda(void * arg)
 {
 
-struct arg_holder arg_struct = *(struct arg_holder *)arg;;
-
-
+struct arg_holder arg_struct = *(struct arg_holder *)arg;
 
   // setup Panda3d
   PandaFramework pandaFramework;
@@ -129,7 +127,7 @@ int main(int argc, char *argv[])
     arg_struct->argv = argv;
 
 
-    pthread_create(&thread_romeo, NULL, &grab_compute_pose, NULL);
+    pthread_create(&thread_romeo, NULL, &grab_compute_pose, arg_struct);
     pthread_create(&thread_maze, NULL, &ar_panda, arg_struct);
 
 //  // setup Panda3d
@@ -153,6 +151,7 @@ int main(int argc, char *argv[])
 
 
 pthread_mutex_destroy(&m_mutex);
+pthread_mutex_destroy(&m_mutex_rg);
 
 #endif
 //  // quit Panda3d

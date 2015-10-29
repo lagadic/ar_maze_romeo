@@ -28,6 +28,8 @@ extern vpPoseVector cMt;
 extern pthread_mutex_t m_mutex;
 extern pthread_cond_t  condition_var;
 
+extern pthread_mutex_t m_mutex_rg;
+extern bool m_restart_game;
 
 
 
@@ -65,7 +67,6 @@ World::World(WindowFramework* windowFrameworkPtr)
   // Escape quits
   m_windowFrameworkPtr->enable_keyboard();
   m_windowFrameworkPtr->get_panda_framework()->define_key("escape", "sysExit", sys_exit, NULL);
-
   // Disable mouse-based camera control
   // Note: irrelevant in C++
 
@@ -482,6 +483,19 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
   LRotationf newRot(axis, 45.5 * dt * m_ballV.length());
   m_ballNp.set_quat(prevRot * newRot);
 
+  pthread_mutex_lock(&m_mutex_rg);
+  bool restart = m_restart_game;
+  if (restart)
+    m_restart_game = false;
+  pthread_mutex_unlock(&m_mutex_rg);
+
+
+  if (restart)
+  {
+    std::cout << "PRESSED R _______________________" <<std::endl;
+    restart_game();
+  }
+
   // Continue the task indefinitely
   return AsyncTask::DS_cont;
 }
@@ -563,6 +577,41 @@ void World::lose_game(const CollisionEntry& entry)
     }
   }
 }
+
+
+// restart
+void World::restart_game()
+{
+
+  std::cout << "RESTART GAME ***********************" <<std::endl;
+
+  // Stop the maze task
+  PT(GenericAsyncTask) rollTaskPtr = DCAST(GenericAsyncTask, AsyncTaskManager::get_global_ptr()->find_task("rollTask"));
+  if(rollTaskPtr != NULL)
+  {
+    AsyncTaskManager::get_global_ptr()->remove(rollTaskPtr);
+  }
+
+  PT(CMetaInterval) cMetaIntervalPtr = new CMetaInterval("sequence");
+  cMetaIntervalPtr->set_done_event("restartGame");
+  cMetaIntervalPtr->start();
+
+  EventHandler::get_global_event_handler()->add_hook("restartGame", call_start, this);
+
+
+  PT(GenericAsyncTask) intervalManagerTaskPtr = DCAST(GenericAsyncTask, AsyncTaskManager::get_global_ptr()->find_task("intervalManagerTask"));
+  if(intervalManagerTaskPtr == NULL)
+  {
+    intervalManagerTaskPtr = new GenericAsyncTask("intervalManagerTask", step_interval_manager, NULL);
+    if(intervalManagerTaskPtr != NULL)
+    {
+      AsyncTaskManager::get_global_ptr()->add(intervalManagerTaskPtr);
+    }
+  }
+}
+
+
+
 
 void World::sys_exit(const Event* eventPtr, void* dataPtr)
 {

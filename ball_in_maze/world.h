@@ -32,6 +32,8 @@ class World
    void ground_collide_handler(const CollisionEntry& colEntry);
    void wall_collide_handler(const CollisionEntry& colEntry);
    void lose_game(const CollisionEntry& entry);
+   World * getThis(){return this;}
+
 
    World(); // to prevent use of the default constructor
    void traverse();
@@ -41,6 +43,7 @@ class World
    static AsyncTask::DoneStatus call_roll(GenericAsyncTask *taskPtr, void *dataPtr);
    static AsyncTask::DoneStatus step_interval_manager(GenericAsyncTask *taskPtr, void *dataPtr);
    static void call_start(const Event* eventPtr, void* dataPtr);
+   void restart_game();
 
    PT(WindowFramework) m_windowFrameworkPtr;
    PT(CollisionRay) m_ballGroundRayPtr;
