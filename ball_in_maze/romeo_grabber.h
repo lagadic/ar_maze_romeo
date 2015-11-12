@@ -28,6 +28,7 @@
 
 
 typedef enum {
+  NoControll,
   LearnPoseTemplate,
   FindTemplate,
   CalibrateRigthArm,
@@ -44,11 +45,13 @@ struct arg_holder {
   char ** argv;
 };
 
-
+extern cv::Mat m_cvI;
+extern unsigned int m_count_img;
 extern vpPoseVector cMt;
 extern pthread_mutex_t m_mutex;
 extern pthread_cond_t  condition_var;
 extern pthread_mutex_t m_mutex_rg;
+extern pthread_mutex_t m_mutex_img;
 extern bool m_restart_game;
 
 /*!
@@ -104,6 +107,7 @@ void *grab_compute_pose(void * arg)
     std::string opt_box_name = "star_wars_pic";
     std::string opt_data_folder = std::string(ROMEOTK_DATA_FOLDER);
     bool opt_learn_pose = false;
+    bool opt_no_controll = false;
 
     for (unsigned int i=0; i<arg_struct.argc; i++) {
       if (std::string(arg_struct.argv[i]) == "--pic-name")
@@ -112,8 +116,10 @@ void *grab_compute_pose(void * arg)
         opt_data_folder = std::string(arg_struct.argv[i+1]);
       else if (std::string(arg_struct.argv[i]) == "--init-pose")
         opt_learn_pose = true;
+      else if (std::string(arg_struct.argv[i]) == "--no-controll")
+        opt_no_controll = true;
       else if (std::string(arg_struct.argv[i]) == "--help") {
-        std::cout << "Usage: " << arg_struct.argv[0] << "[--box-name] [--data-folder]" << std::endl;
+        std::cout << "Usage: " << arg_struct.argv[0] << "[--box-name] [--data-folder] [--no-controll]" << std::endl;
 
         return 0;
       }
@@ -412,19 +418,35 @@ void *grab_compute_pose(void * arg)
 
     if (opt_learn_pose)
       state = LearnPoseTemplate;
+    else if (opt_no_controll)
+      state = NoControll;
     else
       state = FindTemplate;
 
 
-    AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(-4.6), vpMath::rad(15.0), vpMath::rad(6.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
+    AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(-4.6), vpMath::rad(15.0), vpMath::rad(6.3), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
     float fractionMaxSpeed  = 0.1f;
     robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
 
+    cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );// Create a window for display.
     while(1)
     {
       double t = vpTime::measureTimeMs();
+
+
       g.acquire(cvI);
       vpImageConvert::convert(cvI, I);
+      pthread_mutex_lock(&m_mutex_img);
+      m_cvI = cvI.clone();
+      m_count_img++;
+      pthread_mutex_unlock(&m_mutex_img);
+
+
+
+      //      cv::imshow( "Display window", cvI );                   // Show our image inside it.
+
+      //      cv::waitKey(10);
+
       vpDisplay::display(I);
 
       bool click_done = vpDisplay::getClick(I, button, false);
@@ -523,7 +545,7 @@ void *grab_compute_pose(void * arg)
       }
 
       // Detect and track hand targets
-      if (state < WaitPreGrasp)
+      if (state < WaitPreGrasp && state != NoControll)
       {
         status_hand_tracker[index_hand] = hand_tracker[index_hand]->track(cvI,I);
 
@@ -539,7 +561,7 @@ void *grab_compute_pose(void * arg)
 
 
 
-      // track qrcode
+      // track template
       status_template_tracker = t_tracker.track(I);
 
 
@@ -554,7 +576,8 @@ void *grab_compute_pose(void * arg)
 
         pthread_mutex_lock(&m_mutex);
         cMt = _cpMtp;
-        //pthread_cond_signal( &condition_var );
+        if (opt_no_controll)
+          pthread_cond_signal( &condition_var );
         pthread_mutex_unlock(&m_mutex);
 
 
@@ -590,7 +613,7 @@ void *grab_compute_pose(void * arg)
       {
         if (click_done && button == vpMouseButton::button1 ) {
 
-          angles_head      = AL::ALValue::array(vpMath::rad(-15.2), vpMath::rad(17.6), vpMath::rad(10.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
+          angles_head      = AL::ALValue::array(vpMath::rad(-15.2), vpMath::rad(17.6), vpMath::rad(10.3), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
           fractionMaxSpeed  = 0.01f;
           robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
 
@@ -625,7 +648,7 @@ void *grab_compute_pose(void * arg)
           //AL::ALValue names_head     = AL::ALValue::array("NeckYaw","NeckPitch","HeadPitch","HeadRoll","LEyeYaw", "LEyePitch","LEyeYaw", "LEyePitch" );
           //      AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(8.7), vpMath::rad(16.6), vpMath::rad(10.3), vpMath::rad(0.0), 0.0 , 0.0, 0.0, 0.0  );
           // Small Plate
-          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(2.4), vpMath::rad(17.6), vpMath::rad(10.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
+          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(4.8), vpMath::rad(17.6), vpMath::rad(10.3), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
 
           float fractionMaxSpeed  = 0.01f;
           robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
@@ -661,7 +684,7 @@ void *grab_compute_pose(void * arg)
           state = WaitPreGrasp;
           click_done = false;
           //AL::ALValue names_head     = AL::ALValue::array("NeckYaw","NeckPitch","HeadPitch","HeadRoll","LEyeYaw", "LEyePitch","LEyeYaw", "LEyePitch" );
-          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(-4.2), vpMath::rad(14.9), vpMath::rad(5.3), vpMath::rad(0.0), 0.0 , vpMath::rad(9.8), 0.0, 0.0  );
+          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(-4.2), vpMath::rad(14.9), vpMath::rad(5.3), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
           float fractionMaxSpeed  = 0.01f;
           robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
         }
@@ -734,11 +757,11 @@ void *grab_compute_pose(void * arg)
             //                    {
 
             unsigned int i = 0;
-            //vpAdaptiveGain lambda(0.8, 0.05, 8);
-            vpAdaptiveGain lambda(0.4, 0.02, 4);
+            vpAdaptiveGain lambda(0.8, 0.05, 8);
+            //vpAdaptiveGain lambda(0.4, 0.02, 4);
 
-            //servo_larm[i]->setLambda(lambda);
-            servo_larm[i]->setLambda(0.2);
+            servo_larm[i]->setLambda(lambda);
+            // servo_larm[i]->setLambda(0.2);
 
 
             eJe[i] = robot.get_eJe(chain_name[i]);
@@ -873,22 +896,29 @@ void *grab_compute_pose(void * arg)
             //                    }
             double error_t_treshold = 0.007;
 
-            if ( (sqrt(t_error_grasp.sumSquare()) < error_t_treshold) && (theta_error_grasp < vpMath::rad(3)) && first_time_box_pose)
+            if ( (sqrt(t_error_grasp.sumSquare()) < error_t_treshold) && (theta_error_grasp < vpMath::rad(2)) && first_time_box_pose)
             {
               std::cout << "Reached initial pose. The game is starting!" << std::endl;
-              robot.stop(jointArmsNames_tot);
 
-              vpTime::sleepMs(500);
-              // Compute desired box position cMo_t_d
-              // cMo_t_d = cMo_t * M_offset;
-              pthread_mutex_lock(&m_mutex);
-              pthread_cond_signal( &condition_var );
-              pthread_mutex_unlock(&m_mutex);
-              first_time_box_pose = false;
               // grasp_servo_converged[0] = true;
 
-              //              if (click_done && button == vpMouseButton::button1)
-              //                click_done = false;
+              std::cout << "Click to start demo." << std::endl;
+
+
+
+              if (click_done && button == vpMouseButton::button1)
+              {
+
+                vpTime::sleepMs(500);
+                robot.stop(jointArmsNames_tot);
+                // Compute desired box position cMo_t_d
+                // cMo_t_d = cMo_t * M_offset;
+                pthread_mutex_lock(&m_mutex);
+                pthread_cond_signal( &condition_var );
+                pthread_mutex_unlock(&m_mutex);
+                first_time_box_pose = false;
+                click_done = false;
+              }
             }
 
 

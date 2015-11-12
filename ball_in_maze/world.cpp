@@ -4,10 +4,12 @@
  *  Created on: 2012-05-19
  *      Author: dri
  */
+#include <visp/vpImageConvert.h>
+#include <visp/vpMath.h>
+#include <visp/vpPoseVector.h>
 
-//#include "../p3util/cOnscreenText.h"
-#include"cOnscreenText.h"
-#include "pandaFramework.h"
+#include "world.h"
+#include "cOnscreenText.h"
 #include "bitMask.h"
 #include "ambientLight.h"
 #include "directionalLight.h"
@@ -17,13 +19,18 @@
 #include "waitInterval.h"
 #include "cMetaInterval.h"
 #include "cIntervalManager.h"
-#include "world.h"
+#include "texturePool.h"
 #include "filename.h"
 #include "executionEnvironment.h"
+#include "lens.h"
+#include "camera.h"
+#include "perspectiveLens.h"
 
-#include <visp/vpMath.h>
-#include <visp/vpPoseVector.h>
 
+
+extern cv::Mat m_cvI;
+extern unsigned int m_count_img;
+extern pthread_mutex_t m_mutex_img;
 extern vpPoseVector cMt;
 extern pthread_mutex_t m_mutex;
 extern pthread_cond_t  condition_var;
@@ -45,9 +52,11 @@ World::World(WindowFramework* windowFrameworkPtr)
     return;
   }
 
+  m_last_index_img = 0;
+
   // This code puts the standard title and instruction text on screen
   COnscreenText title("title", COnscreenText::TS_plain);
-  title.set_text("Panda3D: Tutorial - Collision Detection");
+  title.set_text("Maze game");
   title.set_fg(Colorf(1,1,1,1));
   title.set_pos(LVecBase2f(0.7,-0.95));
   title.set_scale(0.07);
@@ -74,6 +83,9 @@ World::World(WindowFramework* windowFrameworkPtr)
   cameraNp = m_windowFrameworkPtr->get_camera_group();
   cameraNp.set_pos_hpr(0, 0, 25, 0, -90, 0);
   // cameraNp.set_pos_hpr(0, 0, 0, 0, 0, 0);
+  PT(Camera)camera_main    = m_windowFrameworkPtr->get_camera(0);
+  PT(PerspectiveLens) lens = DCAST(PerspectiveLens,camera_main->get_lens());
+  lens->set_fov(60.9,47.6);
 
 
   // Get the location of the executable file I'm running:
@@ -84,10 +96,11 @@ World::World(WindowFramework* windowFrameworkPtr)
 
   // Load the maze and place it in the scene
   NodePath modelsNp = m_windowFrameworkPtr->get_panda_framework()->get_models();
-  m_mazeNp = m_windowFrameworkPtr->load_model(modelsNp, "/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/maze");
+  m_mazeNp = m_windowFrameworkPtr->load_model(modelsNp, "/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/maze_simple_first");
   //m_windowFrameworkPtr->load_model(modelsNp, mydir + "/../../../ball_in_maze/models/maze");
   NodePath renderNp = m_windowFrameworkPtr->get_render();
   m_mazeNp.reparent_to(renderNp);
+
 
   // Most times, you want collisions to be tested against invisible geometry
   // rather than every polygon. This is because testing against every polygon
@@ -122,9 +135,10 @@ World::World(WindowFramework* windowFrameworkPtr)
   // For this example, we will make everything we want the ball to collide with
   // include bit 0
   m_wallsNp.node()->set_into_collide_mask(BitMask32::bit(0));
+  //m_wallsNp.set_scale(0.5,0.5,1.0);
   // CollisionNodes are usually invisible but can be shown. Uncomment the next
   // line to see the collision walls
-  // m_wallsNp.show();
+  //m_wallsNp.show();
 
   // We will now find the triggers for the holes and set their masks to 0 as
   // well. We also set their names to make them easier to identify during
@@ -150,12 +164,14 @@ World::World(WindowFramework* windowFrameworkPtr)
   m_mazeGroundNp = m_mazeNp.find("**/ground_collide");
   m_mazeGroundNp.node()->set_into_collide_mask(BitMask32::bit(1));
 
+
   // Load the ball and attach it to the scene
   // It is on a root dummy node so that we can rotate the ball itself without
   // rotating the ray that will be attached to it
   m_ballRootNp = renderNp.attach_new_node("ballRoot");
   m_ballNp = m_windowFrameworkPtr->load_model(modelsNp, "/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/ball");
   m_ballNp.reparent_to(m_ballRootNp);
+  //m_ballNp.set_scale(0.5,0.5,0.5);
 
   // Find the collision sphere for the ball which was created in the egg file
   // Notice that it has a from collision mask of bit 0, and an into collision
@@ -164,6 +180,8 @@ World::World(WindowFramework* windowFrameworkPtr)
   m_ballSphereNp = m_ballNp.find("**/ball");
   DCAST(CollisionNode, m_ballSphereNp.node())->set_from_collide_mask(BitMask32::bit(0));
   m_ballSphereNp.node()->set_into_collide_mask(BitMask32::all_off());
+  // m_ballSphereNp.set_scale(0.5,0.5,0.5);
+  //m_ballSphereNp.show();
 
   // No we create a ray to start above the ball and cast down. This is to
   // Determine the height the ball should be at and the angle the floor is
@@ -192,7 +210,7 @@ World::World(WindowFramework* windowFrameworkPtr)
       // (it will always be 10 feet over the ball and point down)
       m_ballGroundColNp = m_ballRootNp.attach_new_node(m_ballGroundColPtr);
       // Uncomment this line to see the ray
-      m_ballGroundColNp.show();
+      // m_ballGroundColNp.show();
     }
   }
 
@@ -219,7 +237,7 @@ World::World(WindowFramework* windowFrameworkPtr)
 
   // Collision traversers have a built in tool to help visualize collisions.
   // Uncomment the next line to see it.
-  // m_cTrav.show_collisions(renderNp);
+ // m_cTrav.show_collisions(renderNp);
 
   // This section deals with lighting for the ball. Only the ball was lit
   // because the maze has static lighting pregenerated by the modeler
@@ -244,9 +262,69 @@ World::World(WindowFramework* windowFrameworkPtr)
   if(materialPtr != NULL)
   {
     materialPtr->set_specular(Colorf(1,1,1,1));
-    materialPtr->set_shininess(96);
+    materialPtr->set_shininess(93);
     m_ballNp.set_material(materialPtr, 1);
   }
+
+
+  // Load background
+  const NodePath& models = m_windowFrameworkPtr->get_panda_framework()->get_models();
+  m_picPlane = m_windowFrameworkPtr->load_model(models, "/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/plane");
+  const NodePath& render = m_windowFrameworkPtr->get_render();
+  m_picPlane.reparent_to(render);
+  m_picPlane.set_pos_hpr(cameraNp, 0, 45, 0,0.0 ,0.0,0.0);
+  m_picPlane.set_scale(84);
+  //  m_picPlane.set_texture(TexturePool::load_texture("/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/baked_maze.jpg"));
+
+  //  //tex.setup_2d_texture();
+  //  // tex.set_ram_image(m_cvI.data);
+  //  cv::Size size = m_cvI.size();
+
+  //  PT(Texture) tex = new Texture();
+  //  tex->set_compression(Texture::CM_off);
+  //  tex->compress_ram_image(Texture::CM_off);
+  //  tex->set_quality_level(Texture::QL_best);
+  //  tex->setup_2d_texture(size.width, size.height, Texture::T_unsigned_byte, Texture::F_rgb8);
+
+  //  PTA_uchar pt;
+  //  int total = size.width * size.height * m_cvI.channels();
+  //  pt.resize(total);
+
+  //  std::vector<uchar> data(m_cvI.ptr(), m_cvI.ptr() + total);
+  //  std::string s(data.begin(), data.end());
+
+  //  //string matAsString (m_cvI.begin<unsigned char>(), m_cvI.end<unsigned char>());
+
+  //  pt.set_data(s);
+
+  //  tex->set_ram_image(pt, Texture::CM_off);
+  //  m_picPlane.set_texture(tex);
+
+  //  PTA_uchar pt;
+
+
+  //  pt.resize(I_.getSize());
+
+  //  pt.set_data((const string &)I_.bitmap);
+
+  //  //&pt = m_cvI.data;
+  //  tex->set_ram_image(pt);
+
+  //  int total = size.width * size.height * m_cvI.channels();
+  //  pt.resize(total);
+
+  //  pt.set_data(reinterpret_cast<const char*> (m_cvI.data));
+
+  //  //&pt = m_cvI.data;
+  //  tex.set_ram_image(pt);
+
+
+  //  a = PTAUChar();
+  //  a.setData(myDataString)
+  //  tex = Texture('tex')
+  //  tex.setup2dTexture(xsize, ysize, Texture.TUnsignedByte, Texture.FRgb)
+  //  tex.setRamImage(a)
+  //#endif
 
   // Finally, we call start for more initialization
   start();
@@ -256,12 +334,14 @@ void World::start()
 {
 
   std::cout <<" PANDA THREAD: Waiting for a good pose." << std::endl;
+  m_init = false;
 
   pthread_mutex_lock(&m_mutex);
   pthread_cond_wait( &condition_var, &m_mutex );
   vpRotationMatrix R(cMt);
   vpRzyxVector r(R);
   // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+
   m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
 
 
@@ -306,6 +386,22 @@ void World::start()
 
 
 
+  //  PT(Texture) tex;
+  //  tex = TexturePool::load_texture("/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/baked_maze.jpg");
+
+  //  CardMaker cm("cardMaker");
+  //  PT(PandaNode) readyCard = cm.generate();
+  //  NodePath path(readyCard);
+  //  path.set_texture( tex );
+  //  path.reparent_to(m_windowFrameworkPtr->get_render());
+
+  //  NodePath noiseplane;
+  //  noiseplane = m_windowFrameworkPtr->load_model(m_windowFrameworkPtr->get_render(), "/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/baked_maze.jpg");
+
+  //  noiseplane.set_alpha_scale(1);
+  //  noiseplane.set_pos_hpr(0, 0, 0, 0, 0, 0);
+
+
   // Create the movement task, but first make sure it is not already running
   PT(GenericAsyncTask) rollTaskPtr = DCAST(GenericAsyncTask, AsyncTaskManager::get_global_ptr()->find_task("rollTask"));
   if(rollTaskPtr == NULL)
@@ -346,7 +442,7 @@ void World::ground_collide_handler(const CollisionEntry& colEntry)
   // points down the slope. By getting the acceleration in 3D like this rather
   // than in 2D, we reduce the amount of error per-frame, reducing jitter
   m_accelV = norm.cross(accelSide);
-  m_ballRootNp.show();
+  // m_ballRootNp.show();
 
 }
 
@@ -433,34 +529,88 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
   // m_mazeNp.set_r( m_windowFrameworkPtr->get_graphics_window()->get_pointer(0).get_x()/ 10 -40);
   // m_mazeNp.set_p( m_windowFrameworkPtr->get_graphics_window()->get_pointer(0).get_y()/ 10 -30);
 
+
+  static bool first_time = true;
+  if (first_time)
+  {
+    pthread_mutex_lock(&m_mutex_img);
+    m_last_index_img = m_count_img;
+    pthread_mutex_unlock(&m_mutex_img);
+    first_time = false;
+  }
+  // Create texture with image coming from Romeo
+
+  pthread_mutex_lock(&m_mutex_img);
+  unsigned int m_count_img_ = m_count_img;
+  pthread_mutex_unlock(&m_mutex_img);
+
+  //std::cout << "m_count_img: " << m_count_img_ << std::endl;
+ //  std::cout << "m_last_index_img: " << m_last_index_img << std::endl;
+
+  if (m_count_img_ != m_last_index_img)
+  {
+
+#if 1
+    cv::Mat m_cvIflip;
+    pthread_mutex_lock(&m_mutex_img);
+    m_cvIflip = m_cvI.clone();
+    pthread_mutex_unlock(&m_mutex_img);
+    cv::flip(m_cvIflip,m_cvIflip,0);
+
+
+    cv::Size size = m_cvIflip.size();
+    PT(Texture) tex = new Texture();
+    tex->set_compression(Texture::CM_off);
+    // tex->compress_ram_image(Texture::CM_off);
+    tex->set_quality_level(Texture::QL_best);
+    tex->setup_2d_texture(size.width, size.height, Texture::T_unsigned_byte, Texture::F_rgb8);
+
+    PTA_uchar pt;
+    int total = size.width * size.height * m_cvIflip.channels();
+    pt.resize(total);
+
+    std::vector<uchar> data(m_cvIflip.ptr(), m_cvIflip.ptr() + total);
+    std::string s(data.begin(), data.end());
+
+    pt.set_data(s);
+
+    tex->set_ram_image(pt, Texture::CM_off);
+    m_picPlane.set_texture(tex);
+
+
+    m_last_index_img = m_count_img;
+#endif
+  }
+
   pthread_mutex_lock(&m_mutex);
-
-  //std::cout << "POSE: ";
-
+  vpHomogeneousMatrix _cMt = cMt;
+  pthread_mutex_unlock(&m_mutex);
   // cMt.print();
-  vpRotationMatrix R(cMt);
+  vpRotationMatrix R(_cMt);
 
   // vpRxyzVector r(R);
   //std::cout << "RRAD: " << r[0]<< ", " <<(r[1])<< ", " <<(r[2]) << std::endl;
 
   // std::cout << "R: " << vpMath::deg(r[0])<< ", " <<vpMath::deg(r[1])<< ", " <<vpMath::deg(r[2]) << std::endl;
 
-  // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,-vpMath::deg(r[2]),vpMath::deg(r[0]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  // m_mazeNp.set_pos_hpr_scale(cameraNp,_cMt[0]*100,_cMt[1]*100,_cMt[2]*100,-vpMath::deg(r[2]),vpMath::deg(r[0]),vpMath::deg(r[1]),1.0,1.0,1.0);
 
   vpRzyxVector r(R);
 
   // std::cout << "R: " << vpMath::deg(r[0])<< ", " <<vpMath::deg(r[1])<< ", " <<vpMath::deg(r[2]) << std::endl;
 
-  // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  //m_mazeNp.set_pos_hpr_scale(cameraNp,_cMt[0]*100,_cMt[1]*100,_cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  //m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+  // m_mazeNp.set_pos_hpr_scale(cameraNp,_cMt[0]*50,_cMt[1]*50,_cMt[2]*50,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),0.5,0.5,0.5);
   m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
 
 
-  //m_mazeNp.set_pos_hpr_scale(cMt[0],cMt[2],cMt[1],vpMath::deg(cMt[3]),vpMath::deg(cMt[5]),-vpMath::deg(cMt[4]),1.0,1.0,1.0);
-
-  pthread_mutex_unlock(&m_mutex);
+  //m_mazeNp.set_pos_hpr_scale(_cMt[0],_cMt[2],_cMt[1],vpMath::deg(_cMt[3]),vpMath::deg(_cMt[5]),-vpMath::deg(_cMt[4]),1.0,1.0,1.0);
 
 
-  // m_mazeNp.set_pos_hpr_scale(cameraNp,0.0, 25.0, 0.0, 0.0, 90.0, 0.0 ,1.0,1.0,1.0);
+  LPoint3 ball_pose = m_ballRootNp.get_pos(m_mazeNp);
+
+  //std::cout <<"Ball pose: " << ball_pose << std::endl;
 
   // Finally, we move the ball
   // Update the velocity based on acceleration

@@ -24,16 +24,18 @@
 #define Colorf LColorf
 #define PNG_SKIP_SETJMP_CHECK
 //#endif
-#include "pandaFramework.h"
 #include "world.h"
 #include "romeo_grabber.h"
 
 
 
 vpPoseVector cMt;
+cv::Mat m_cvI =  cv::Mat(cv::Size(320,240), CV_8UC3);
+unsigned int m_count_img = 0;
 #ifdef VISP_HAVE_PTHREAD
 pthread_mutex_t m_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t  condition_var = PTHREAD_COND_INITIALIZER;
+pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t m_mutex_img = PTHREAD_MUTEX_INITIALIZER;
 // Restart game
 pthread_mutex_t m_mutex_rg = PTHREAD_MUTEX_INITIALIZER;
 bool m_restart_game = false;
@@ -86,15 +88,24 @@ struct arg_holder arg_struct = *(struct arg_holder *)arg;
   // setup Panda3d
   PandaFramework pandaFramework;
   pandaFramework.open_framework(arg_struct.argc, arg_struct.argv);
+ // WindowProperties prop;
+ // prop.get_default();
+ // prop.set_size(320,240);
+
   PT(WindowFramework) windowFrameworkPtr = pandaFramework.open_window();
   if(windowFrameworkPtr == NULL)
   {
     nout << "ERROR: could not open the WindowFramework." << endl;
     return 0; // error
   }
+  
+  
 
   // Finally, create an instance of our class and start 3d rendering
   World world(windowFrameworkPtr);
+
+  PT(FrameRateMeter) meter = new FrameRateMeter("fps");
+  meter->setup_window(windowFrameworkPtr->get_graphics_output());
 
   // Run the simulation
   pandaFramework.main_loop();
@@ -109,9 +120,6 @@ struct arg_holder arg_struct = *(struct arg_holder *)arg;
   pthread_exit(NULL);
 
 }
-
-
-
 
 
 int main(int argc, char *argv[])

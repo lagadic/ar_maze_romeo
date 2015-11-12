@@ -8,8 +8,11 @@
 #ifndef WORLD_H_
 #define WORLD_H_
 
+#include "pandaFramework.h"
 #include "collisionRay.h"
 #include "collisionHandlerQueue.h"
+#include "openCVTexture.h"
+
 
 class World
    {
@@ -59,12 +62,14 @@ class World
    NodePath m_ballNp;
    NodePath m_ballSphereNp;
    NodePath m_ballGroundColNp;
+   NodePath  m_picPlane;
    vector<NodePath> m_loseTriggers;
    CollisionTraverser m_cTrav;
    LVecBase3f m_ballV;
    LVecBase3f m_accelV;
    double m_last;
    bool m_init;
+   unsigned int m_last_index_img;
 
    };
 
