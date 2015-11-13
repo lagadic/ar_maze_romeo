@@ -7,6 +7,7 @@
 #include <visp/vpImageConvert.h>
 #include <visp/vpMath.h>
 #include <visp/vpPoseVector.h>
+#include <visp/vpQuaternionVector.h>
 
 #include "world.h"
 #include "cOnscreenText.h"
@@ -19,7 +20,6 @@
 #include "waitInterval.h"
 #include "cMetaInterval.h"
 #include "cIntervalManager.h"
-#include "texturePool.h"
 #include "filename.h"
 #include "executionEnvironment.h"
 #include "lens.h"
@@ -53,6 +53,7 @@ World::World(WindowFramework* windowFrameworkPtr)
   }
 
   m_last_index_img = 0;
+  m_tex = new Texture();
 
   // This code puts the standard title and instruction text on screen
   COnscreenText title("title", COnscreenText::TS_plain);
@@ -336,16 +337,44 @@ void World::start()
   std::cout <<" PANDA THREAD: Waiting for a good pose." << std::endl;
   m_init = false;
 
+//  pthread_mutex_lock(&m_mutex);
+//  pthread_cond_wait( &condition_var, &m_mutex );
+//  vpRotationMatrix R(cMt);
+//  vpRzyxVector r(R);
+//  // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+
+//  m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
+
+//  m_mazeNp.set_pos_quat(cameraNp,);
+
+//  pthread_mutex_unlock(&m_mutex);
+
   pthread_mutex_lock(&m_mutex);
-  pthread_cond_wait( &condition_var, &m_mutex );
-  vpRotationMatrix R(cMt);
-  vpRzyxVector r(R);
-  // m_mazeNp.set_pos_hpr_scale(cameraNp,cMt[0]*100,cMt[1]*100,cMt[2]*100,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
-
-  m_mazeNp.set_pos_hpr_scale(cameraNp, 0.0, 25.0, 0.0,vpMath::deg(r[0]),vpMath::deg(r[2]),vpMath::deg(r[1]),1.0,1.0,1.0);
-
-
+   pthread_cond_wait( &condition_var, &m_mutex );
+  vpHomogeneousMatrix _cMt = cMt;
   pthread_mutex_unlock(&m_mutex);
+
+
+  vpRotationMatrix R(_cMt);
+  vpQuaternionVector vp_q(R);
+
+  LVecBase3 pos(_cMt[0][3]*50.0,_cMt[1][3]*50.0,_cMt[2][3]*50.0);
+
+  //std::cout << "q: " << vp_q <<std::endl;
+ //LQuaternion q(vp_q[0], vp_q[1], vp_q[2],vp_q[3]);
+
+ vpThetaUVector tu(R);
+ LQuaternion q;
+ double theta;
+ vpColVector uu;
+ tu.extract(theta,uu);
+ LVecBase3 u (uu[0],uu[1],uu[2]);
+ q.set_from_axis_angle_rad(theta, u);
+
+  m_mazeNp.set_pos_quat(cameraNp,pos,q);
+
+
+
 
   std::cout <<" PANDA THREAD: Start initalization." << std::endl;
 
@@ -559,23 +588,27 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
 
 
     cv::Size size = m_cvIflip.size();
-    PT(Texture) tex = new Texture();
-    tex->set_compression(Texture::CM_off);
+//    PT(Texture) tex = new Texture();
+    m_tex->set_compression(Texture::CM_off);
     // tex->compress_ram_image(Texture::CM_off);
-    tex->set_quality_level(Texture::QL_best);
-    tex->setup_2d_texture(size.width, size.height, Texture::T_unsigned_byte, Texture::F_rgb8);
+    m_tex->set_quality_level(Texture::QL_best);
+    m_tex->setup_2d_texture(size.width, size.height, Texture::T_unsigned_byte, Texture::F_rgb8);
 
-    PTA_uchar pt;
+//    PTA_uchar pt;
     int total = size.width * size.height * m_cvIflip.channels();
-    pt.resize(total);
+//    pt.resize(total);
 
-    std::vector<uchar> data(m_cvIflip.ptr(), m_cvIflip.ptr() + total);
-    std::string s(data.begin(), data.end());
+//    std::vector<uchar> data(m_cvIflip.ptr(), m_cvIflip.ptr() + total);
+//    std::string s(data.begin(), data.end());
 
-    pt.set_data(s);
+//    pt.set_data(s);
 
-    tex->set_ram_image(pt, Texture::CM_off);
-    m_picPlane.set_texture(tex);
+//    tex->set_ram_image(pt, Texture::CM_off);
+
+    PTA_uchar pt = m_tex->modify_ram_image();
+    memcpy(pt.p(), m_cvIflip.ptr(), total);
+
+    m_picPlane.set_texture(m_tex);
 
 
     m_last_index_img = m_count_img;
@@ -585,6 +618,8 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
   pthread_mutex_lock(&m_mutex);
   vpHomogeneousMatrix _cMt = cMt;
   pthread_mutex_unlock(&m_mutex);
+
+#if 0
   // cMt.print();
   vpRotationMatrix R(_cMt);
 
@@ -606,6 +641,32 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
 
 
   //m_mazeNp.set_pos_hpr_scale(_cMt[0],_cMt[2],_cMt[1],vpMath::deg(_cMt[3]),vpMath::deg(_cMt[5]),-vpMath::deg(_cMt[4]),1.0,1.0,1.0);
+
+
+#endif
+
+
+  vpRotationMatrix R(_cMt);
+  vpQuaternionVector vp_q(R);
+
+  LVecBase3 pos(_cMt[0][3]*50.0,_cMt[1][3]*50.0,_cMt[2][3]*50.0);
+
+  //std::cout << "q: " << vp_q <<std::endl;
+ //LQuaternion q(vp_q[0], vp_q[1], vp_q[2],vp_q[3]);
+
+ vpThetaUVector tu(R);
+ LQuaternion q;
+ double theta;
+ vpColVector uu;
+ tu.extract(theta,uu);
+ LVecBase3 u (uu[0],uu[1],uu[2]);
+ q.set_from_axis_angle_rad(theta, u);
+
+  m_mazeNp.set_pos_quat(cameraNp,pos,q);
+
+
+
+
 
 
   LPoint3 ball_pose = m_ballRootNp.get_pos(m_mazeNp);

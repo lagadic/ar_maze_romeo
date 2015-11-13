@@ -11,6 +11,7 @@
 #include "pandaFramework.h"
 #include "collisionRay.h"
 #include "collisionHandlerQueue.h"
+#include "texturePool.h"
 #include "openCVTexture.h"
 
 
@@ -70,6 +71,7 @@ class World
    double m_last;
    bool m_init;
    unsigned int m_last_index_img;
+   PT(Texture) m_tex;
 
    };
 
