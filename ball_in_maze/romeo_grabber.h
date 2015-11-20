@@ -26,6 +26,8 @@
 #include <vpBlobsTargetTracker.h>
 #include <vpTemplateLocatization.h>
 
+#include "world.h"
+
 
 typedef enum {
   NoControll,
@@ -53,6 +55,8 @@ extern pthread_cond_t  condition_var;
 extern pthread_mutex_t m_mutex_rg;
 extern pthread_mutex_t m_mutex_img;
 extern bool m_restart_game;
+extern pthread_mutex_t m_mutex_com;
+extern World::R_command m_command;
 
 /*!
   Check the validity of the pose of the box.
@@ -175,6 +179,32 @@ void *grab_compute_pose(void * arg)
       else
         std::cout << "Homogeneous matrix " << name_initial_cMt <<": " << std::endl << cMt_initial << std::endl;
     }
+
+
+    vpHomogeneousMatrix M_offset;
+    M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, 0.0, 0.0) ;
+
+    double d_t = 0.0;
+    double d_r = 0.25;
+
+    //Initialize desired poses
+    std::vector<vpHomogeneousMatrix> des_poses(5);
+    //0 - UP -x
+    M_offset.buildFrom(0.0, 0.0, 0.0, -d_r, 0.0, 0.0) ;
+    des_poses[0] = cMt_initial * M_offset;
+    //1 - RIGHT y
+    M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, d_r, 0.0) ;
+    des_poses[1] = cMt_initial * M_offset;
+    //2 - DOWN x
+    M_offset.buildFrom(0.0, 0.0, 0.0, d_r, 0.0, 0.0) ;
+    des_poses[2] = cMt_initial * M_offset;
+    //3 - LEFT -y
+    M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, -d_r, 0.0) ;
+    des_poses[3] = cMt_initial * M_offset;
+    //4 - INITIAL POSITION
+    des_poses[4] = cMt_initial;
+
+    M_offset.setIdentity();
 
     // Initialize the template tracker
     bool status_template_tracker;
@@ -398,12 +428,6 @@ void *grab_compute_pose(void * arg)
     //    M_offset[0][3] = 0.00;
     //    M_offset[2][3] = 0.00;
 
-    vpHomogeneousMatrix M_offset;
-    M_offset.buildFrom(0.0, 0.0, 0.0, 0.0, 0.0, 0.0) ;
-
-    double d_t = 0.0;
-    double d_r = 0.15;
-
     bool first_time_box_pose = true;
 
 
@@ -595,6 +619,7 @@ void *grab_compute_pose(void * arg)
           vpXmlParserHomogeneousMatrix p; // Create a XML parser
 
           vpHomogeneousMatrix belin(-0.009528060139, 0.0, 0.3726390759, vpMath::rad(135.7879077), vpMath::rad(0.0), vpMath::rad(-8.483044353));
+
 
           if (p.save(belin, learned_cMt_path + "/" + learned_cMt_filename , name_initial_cMt) != vpXmlParserHomogeneousMatrix::SEQUENCE_OK)
           {
@@ -838,35 +863,6 @@ void *grab_compute_pose(void * arg)
             cpt_iter_servo_grasp[i] ++;
 
 
-            //                    }
-
-            //                    // Visual servoing slave
-
-            //                    i = 1;
-
-            //                    //vpAdaptiveGain lambda(0.4, 0.02, 4);
-
-            //                    servo_larm[i]->setLambda(0.07);
-
-            //                    servo_larm[i]->set_eJe(robot.get_eJe(chain_name[i]));
-            //                    servo_larm[i]->m_task.set_cVe(hand_Ve_Arm[i]);
-
-            //                    box_dMbox[i] = (cMo_t *box_Mhand[1]).inverse() *  cMo_hand[1] ;
-
-            //                    printPose("box_dMbox: ", box_dMbox[i]);
-            //                    servo_larm[i]->setCurrentFeature(box_dMbox[i]) ;
-
-            //                    vpDisplay::displayFrame(I, cMo_t_d , cam, 0.025, vpColor::red, 2);
-
-            //                    if (first_time_arm_servo[i]) {
-            //                        std::cout << "-- Start visual servoing of the arm" << chain_name[i] << "." << std::endl;
-            //                        servo_arm_time_init[i] = vpTime::measureTimeSecond();
-            //                        first_time_arm_servo[i] = false;
-            //                    }
-
-            //                    q_dot_arm[i] =  - servo_larm[i]->computeControlLaw(servo_arm_time_init[i]);
-
-
 
             eJe[1] = robot.get_eJe(chain_name[1]);
             //                    q_dot_arm[1] += (box_Ve_Arm[1] * eJe[1]).pseudoInverse() * real_v;
@@ -894,7 +890,7 @@ void *grab_compute_pose(void * arg)
 
             //                        vpDisplay::displayText(I, vpImagePoint(10,10), "Cannot converge. Click to continue", vpColor::red);
             //                    }
-            double error_t_treshold = 0.007;
+            double error_t_treshold = 0.006;
 
             if ( (sqrt(t_error_grasp.sumSquare()) < error_t_treshold) && (theta_error_grasp < vpMath::rad(2)) && first_time_box_pose)
             {
@@ -920,6 +916,45 @@ void *grab_compute_pose(void * arg)
                 click_done = false;
               }
             }
+
+
+            if (!first_time_box_pose)
+            {
+
+              pthread_mutex_lock(&m_mutex_com);
+              World::R_command command = m_command;
+              pthread_mutex_unlock(&m_mutex_com);
+
+              switch (command)
+              {
+              case(World::Up):
+                cMo_t_d = des_poses[0];
+                break;
+
+              case(World::Right):
+                cMo_t_d = des_poses[1];
+                break;
+
+              case(World::Down):
+                cMo_t_d = des_poses[2];
+                break;
+
+              case(World::Left):
+                cMo_t_d = des_poses[3];
+                break;
+
+              case(World::Zero):
+                cMo_t_d = des_poses[4];
+                break;
+
+              default:
+                cMo_t_d = des_poses[4];
+
+              }
+
+
+            }
+
 
 
           }

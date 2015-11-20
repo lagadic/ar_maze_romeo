@@ -39,6 +39,8 @@ pthread_mutex_t m_mutex_img = PTHREAD_MUTEX_INITIALIZER;
 // Restart game
 pthread_mutex_t m_mutex_rg = PTHREAD_MUTEX_INITIALIZER;
 bool m_restart_game = false;
+pthread_mutex_t m_mutex_com = PTHREAD_MUTEX_INITIALIZER;
+World::R_command m_command = World::Zero;
 
 #endif
 bool valid_cMt = 0;
