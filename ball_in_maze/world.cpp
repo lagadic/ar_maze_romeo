@@ -1,8 +1,6 @@
 /*
  * world.cpp
  *
- *  Created on: 2012-05-19
- *      Author: dri
  */
 #include <visp/vpImageConvert.h>
 #include <visp/vpMath.h>
@@ -92,7 +90,14 @@ World::World(WindowFramework* windowFrameworkPtr)
   // cameraNp.set_pos_hpr(0, 0, 0, 0, 0, 0);
   PT(Camera)camera_main    = m_windowFrameworkPtr->get_camera(0);
   PT(PerspectiveLens) lens = DCAST(PerspectiveLens,camera_main->get_lens());
-  lens->set_fov(60.9,47.6);
+  //lens->set_fov(60.9,47.6);
+  lens->set_fov(49.85,38.37);
+
+  //lens->set_film_offset(2,8);
+
+  //Horizontal Fov Angle: 49.85818633
+  //Vertical Fov Angle: 38.37696468
+
 
 
   // Get the location of the executable file I'm running:
@@ -280,58 +285,14 @@ World::World(WindowFramework* windowFrameworkPtr)
   const NodePath& render = m_windowFrameworkPtr->get_render();
   m_picPlane.reparent_to(render);
   m_picPlane.set_pos_hpr(cameraNp, 0, 45, 0,0.0 ,0.0,0.0);
-  m_picPlane.set_scale(84);
+  m_picPlane.set_scale(65);
   //  m_picPlane.set_texture(TexturePool::load_texture("/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/baked_maze.jpg"));
 
-  //  //tex.setup_2d_texture();
-  //  // tex.set_ram_image(m_cvI.data);
-  //  cv::Size size = m_cvI.size();
+  // Load the maze and place it in the scene
+  // m_axis = m_windowFrameworkPtr->load_model(modelsNp, "zup-axis");
+  // m_axis.reparent_to(renderNp);
+  // m_axis.set_pos_hpr(cameraNp, 0, 20, 0,0.0 ,0.0,0.0);
 
-  //  PT(Texture) tex = new Texture();
-  //  tex->set_compression(Texture::CM_off);
-  //  tex->compress_ram_image(Texture::CM_off);
-  //  tex->set_quality_level(Texture::QL_best);
-  //  tex->setup_2d_texture(size.width, size.height, Texture::T_unsigned_byte, Texture::F_rgb8);
-
-  //  PTA_uchar pt;
-  //  int total = size.width * size.height * m_cvI.channels();
-  //  pt.resize(total);
-
-  //  std::vector<uchar> data(m_cvI.ptr(), m_cvI.ptr() + total);
-  //  std::string s(data.begin(), data.end());
-
-  //  //string matAsString (m_cvI.begin<unsigned char>(), m_cvI.end<unsigned char>());
-
-  //  pt.set_data(s);
-
-  //  tex->set_ram_image(pt, Texture::CM_off);
-  //  m_picPlane.set_texture(tex);
-
-  //  PTA_uchar pt;
-
-
-  //  pt.resize(I_.getSize());
-
-  //  pt.set_data((const string &)I_.bitmap);
-
-  //  //&pt = m_cvI.data;
-  //  tex->set_ram_image(pt);
-
-  //  int total = size.width * size.height * m_cvI.channels();
-  //  pt.resize(total);
-
-  //  pt.set_data(reinterpret_cast<const char*> (m_cvI.data));
-
-  //  //&pt = m_cvI.data;
-  //  tex.set_ram_image(pt);
-
-
-  //  a = PTAUChar();
-  //  a.setData(myDataString)
-  //  tex = Texture('tex')
-  //  tex.setup2dTexture(xsize, ysize, Texture.TUnsignedByte, Texture.FRgb)
-  //  tex.setRamImage(a)
-  //#endif
 
   // Finally, we call start for more initialization
   start();
@@ -364,7 +325,7 @@ void World::start()
   vpRotationMatrix R(_cMt);
   vpQuaternionVector vp_q(R);
 
-  LVecBase3 pos(_cMt[0][3]*50.0,_cMt[1][3]*50.0,_cMt[2][3]*80.0);
+  LVecBase3 pos(_cMt[0][3]*80.0,_cMt[1][3]*90.0,_cMt[2][3]*80.0);
 
   //std::cout << "q: " << vp_q <<std::endl;
   //LQuaternion q(vp_q[0], vp_q[1], vp_q[2],vp_q[3]);
@@ -407,19 +368,6 @@ void World::start()
   m_ballV = LVector3f(0,0,0);
   // Initial acceleration is 0
   m_accelV = LVector3f(0,0,0);
-
-  //  LPoint3f p0 = m_mazeNp.find("**/p0").get_pos();
-  //  LPoint3f p1 = m_mazeNp.find("**/p1").get_pos();
-  //  LPoint3f p2 = m_mazeNp.find("**/p2").get_pos();
-  //  LPoint3f p3 = m_mazeNp.find("**/p3").get_pos();
-
-  //  std::cout<< "p0"<< p0 << std::endl;
-  //  std::cout<< "p1"<< p1 << std::endl;
-  //  std::cout<< "p2"<< p2 << std::endl;
-  //  std::cout<< "p3"<< p3 << std::endl;
-
-
-
 
   for(unsigned int i = 0; i<m_numAreas; i++)
   {
@@ -464,8 +412,6 @@ void World::start()
   {
     AsyncTaskManager::get_global_ptr()->add(traverserTaskPtr);
   }
-
-
 
   //  PT(Texture) tex;
   //  tex = TexturePool::load_texture("/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/baked_maze.jpg");
@@ -696,7 +642,7 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
   vpRotationMatrix R(_cMt);
   vpQuaternionVector vp_q(R);
 
-  LVecBase3 pos(_cMt[0][3]*50.0,_cMt[1][3]*50.0,_cMt[2][3]*80.0);
+  LVecBase3 pos(_cMt[0][3]*80.0,_cMt[1][3]*90.0,_cMt[2][3]*80.0);
 
   //std::cout << "q: " << vp_q <<std::endl;
   //LQuaternion q(vp_q[0], vp_q[1], vp_q[2],vp_q[3]);
@@ -710,6 +656,7 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
   q.set_from_axis_angle_rad(theta, u);
 
   m_mazeNp.set_pos_quat(cameraNp,pos,q);
+  //m_axis.set_pos_quat(cameraNp,pos,q);
 
   LPoint3 ball_pose = m_ballRootNp.get_pos(m_mazeNp);
 
@@ -721,10 +668,8 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
     //std::cout << "The point " << ip << " is " << (m_areas[i].isInside(ip) ? "inside":"outside") << " the polygon"<< i << std::endl;
     if (m_areas[i].isInside(ip))
     {
-      std::cout << "Inside numero: " << i << std::endl;
-
-      std::cout << "Direction: " << m_commands[i]<< std::endl;
-
+       std::cout << "Inside numero: " << i << std::endl;
+      // std::cout << "Direction: " << m_commands[i]<< std::endl;
 
       pthread_mutex_lock(&m_mutex_com);
       m_command = m_commands[i];
@@ -765,6 +710,7 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
   if (restart)
   {
     std::cout << "PRESSED R _______________________" <<std::endl;
+    m_areas.clear();
     restart_game();
   }
 

@@ -74,6 +74,7 @@ private:
   NodePath m_ballSphereNp;
   NodePath m_ballGroundColNp;
   NodePath  m_picPlane;
+  NodePath  m_axis;
   vector<NodePath> m_loseTriggers;
   CollisionTraverser m_cTrav;
   LVecBase3f m_ballV;

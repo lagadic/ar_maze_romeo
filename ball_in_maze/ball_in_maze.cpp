@@ -1,13 +1,12 @@
 /*
- * tut_ball_in_maze.cpp
+ * ball_in_maze.cpp
  *
- *  Created on: 2012-05-19
- *      Author: dri
+ *  Created on: 2015-11-10
+ *      Author: Giovanni Claudio
  *
  * This is a python to C++ translation of Panda3d 1.7 sample/tutorial:
  * Tut-Ball-in-Maze.py
  *
- * Here's the original python tutorial header:
  *
  * Author: Shao Zhang, Phil Saltzman
  * Last Updated: 5/2/2005
@@ -28,28 +27,31 @@
 #include "romeo_grabber.h"
 
 
+// ********* Global variables
 
-vpPoseVector cMt;
-cv::Mat m_cvI =  cv::Mat(cv::Size(320,240), CV_8UC3);
+// Counter images
 unsigned int m_count_img = 0;
 #ifdef VISP_HAVE_PTHREAD
 pthread_mutex_t m_mutex = PTHREAD_MUTEX_INITIALIZER;
+// Template pose
+vpPoseVector cMt;
+// Condition variable to syncronize the threads. The augmented reality starts when we have a good initial pose
+// of the template
 pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
+// Image from Romeo's camera
 pthread_mutex_t m_mutex_img = PTHREAD_MUTEX_INITIALIZER;
-// Restart game
+cv::Mat m_cvI =  cv::Mat(cv::Size(320,240), CV_8UC3);
+// Pressing the key R on the visp display the game is restarted
 pthread_mutex_t m_mutex_rg = PTHREAD_MUTEX_INITIALIZER;
 bool m_restart_game = false;
+// Commands for Romeo
 pthread_mutex_t m_mutex_com = PTHREAD_MUTEX_INITIALIZER;
 World::R_command m_command = World::Zero;
 
 #endif
 bool valid_cMt = 0;
 
-
-
-//void * grab_compute_pose(void *);
 void * ar_panda(void *arg);
-
 
 //void *grab_compute_pose(void *)
 //{
@@ -85,14 +87,15 @@ void * ar_panda(void *arg);
 void *ar_panda(void * arg)
 {
 
-struct arg_holder arg_struct = *(struct arg_holder *)arg;
+  struct arg_holder arg_struct = *(struct arg_holder *)arg;
 
   // setup Panda3d
   PandaFramework pandaFramework;
   pandaFramework.open_framework(arg_struct.argc, arg_struct.argv);
- // WindowProperties prop;
- // prop.get_default();
- // prop.set_size(320,240);
+  //WindowProperties prop;
+  //prop.get_default();
+  //prop.set_size(320,240);
+
 
   PT(WindowFramework) windowFrameworkPtr = pandaFramework.open_window();
   if(windowFrameworkPtr == NULL)
@@ -100,8 +103,6 @@ struct arg_holder arg_struct = *(struct arg_holder *)arg;
     nout << "ERROR: could not open the WindowFramework." << endl;
     return 0; // error
   }
-  
-  
 
   // Finally, create an instance of our class and start 3d rendering
   World world(windowFrameworkPtr);
@@ -117,8 +118,6 @@ struct arg_holder arg_struct = *(struct arg_holder *)arg;
   pandaFramework.close_framework();
   free(arg);
 
-
-
   pthread_exit(NULL);
 
 }
@@ -128,43 +127,28 @@ int main(int argc, char *argv[])
 {
 
 #ifdef VISP_HAVE_PTHREAD
-    pthread_t thread_romeo;
-    pthread_t thread_maze;
+  pthread_t thread_romeo;
+  pthread_t thread_maze;
 
+  struct arg_holder * arg_struct = new arg_holder;
+  arg_struct->argc = argc;
+  arg_struct->argv = argv;
 
-    struct arg_holder * arg_struct = new arg_holder;
-    arg_struct->argc = argc;
-    arg_struct->argv = argv;
+  // Creates two threads running in parallel:
+  // - thread_romeo: read image from Romeo camera, compute the pose of the template and control
+  //   the robot using two hands
+  // - thread_maze: augmented reality, add a maze and manage the simulation
+  pthread_create(&thread_romeo, NULL, &grab_compute_pose, arg_struct);
+  pthread_create(&thread_maze, NULL, &ar_panda, arg_struct);
 
-
-    pthread_create(&thread_romeo, NULL, &grab_compute_pose, arg_struct);
-    pthread_create(&thread_maze, NULL, &ar_panda, arg_struct);
-
-//  // setup Panda3d
-//  PandaFramework pandaFramework;
-//  pandaFramework.open_framework(argc, argv);
-//  PT(WindowFramework) windowFrameworkPtr = pandaFramework.open_window();
-//  if(windowFrameworkPtr == NULL)
-//  {
-//    nout << "ERROR: could not open the WindowFramework." << endl;
-//    return 1; // error
-//  }
-
-//  // Finally, create an instance of our class and start 3d rendering
-//  World world(windowFrameworkPtr);
-
-//  // Run the simulation
-//  pandaFramework.main_loop();
   pthread_join(thread_maze, 0);
   pthread_cancel(thread_romeo);
-  //pthread_join(thread_romeo, 0);
 
 
-pthread_mutex_destroy(&m_mutex);
-pthread_mutex_destroy(&m_mutex_rg);
+  pthread_mutex_destroy(&m_mutex);
+  pthread_mutex_destroy(&m_mutex_rg);
 
 #endif
-//  // quit Panda3d
-//  pandaFramework.close_framework();
+
   return 0; // success
 }
