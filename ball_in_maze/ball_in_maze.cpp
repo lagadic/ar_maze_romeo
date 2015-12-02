@@ -113,7 +113,7 @@ void *ar_panda(void * arg)
   // Run the simulation
   pandaFramework.main_loop();
 
-  std::cout << "############################END THREAD PANDA" <<std::endl;
+  std::cout << "############################ END THREAD PANDA" <<std::endl;
   // quit Panda3d
   pandaFramework.close_framework();
   free(arg);
@@ -150,5 +150,5 @@ int main(int argc, char *argv[])
 
 #endif
 
-  return 0; // success
+  return 0;
 }

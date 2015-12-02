@@ -3,6 +3,8 @@
 
 #include <iostream>
 #include <string>
+#include <time.h>
+
 
 // ViSP includes.
 #include <visp3/core/vpDisplayX.h>
@@ -25,6 +27,17 @@
 #include <vpTemplateLocatization.h>
 
 #include "world.h"
+
+
+const std::string currentDateTime() {
+  time_t     now = time(0);
+  struct tm  tstruct;
+  char       buf[80];
+  tstruct = *localtime(&now);
+  strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
+
+  return buf;
+}
 
 typedef enum {
   NoControll,
@@ -123,6 +136,32 @@ void *grab_compute_pose(void * arg)
         pthread_exit(NULL);
       }
     }
+
+    // Learning folder in /tmp/$USERNAME
+    std::string username;
+    // Get the user login name
+    vpIoTools::getUserName(username);
+
+    // Create a log filename to save new files...
+    std::string learning_folder;
+#if defined(_WIN32)
+    learning_folder ="C:/temp/" + username;
+#else
+    learning_folder ="/tmp/" + username;
+#endif
+    // Test if the output path exist. If no try to create it
+    if (vpIoTools::checkDirectory(learning_folder) == false) {
+      try {
+        // Create the dirname
+        vpIoTools::makeDirectory(learning_folder);
+      }
+      catch (vpException &e) {
+        std::cout << "Cannot create " << learning_folder << std::endl;
+        std::cout << "Error: " << e.getMessage() <<std::endl;
+        return 0;
+      }
+    }
+
     //******************************************* Grabber initialization ********************************************************
 
     vpNaoqiGrabber g;
@@ -138,11 +177,13 @@ void *grab_compute_pose(void * arg)
     
     vpCameraParameters cam = g.getCameraParameters(vpCameraParameters::perspectiveProjWithoutDistortion);
 
+    //vpCameraParameters cam(cam_real.get_px(),cam_real.get_px(), double(g.getWidth()/2), double(g.getHeight()/2));
+
     cam.computeFov(g.getWidth(),g.getHeight());
-    std::cout << "is Fov Computed: " << cam.isFovComputed() << std::endl;
+    //std::cout << "Is Fov Computed: " << cam.isFovComputed() << std::endl;
     std::cout << "Horizontal Fov Angle: " << vpMath::deg( cam.getHorizontalFovAngle()) << std::endl;
     std::cout << "Vertical Fov Angle: " << vpMath::deg(cam.getVerticalFovAngle()) << std::endl;
-    
+
     vpImage<unsigned char> I(g.getHeight(), g.getWidth());
     vpDisplayX d(I);
     vpDisplay::setTitle(I, "ViSP viewer");
@@ -209,7 +250,7 @@ void *grab_compute_pose(void * arg)
     bool status_template_tracker;
     vpHomogeneousMatrix cMo_t;
     vpTemplateLocatization t_tracker(opt_model, config_detection_file_folder, cam);
-    t_tracker.setTemplateSize(0.13,0.13);
+    t_tracker.setTemplateSize(0.135,0.13);
     t_tracker.initDetection(learning_data_file_name);
     t_tracker.setValiditycMoFunction(checkValiditycMo);
     bool onlyDetection = true;
@@ -228,8 +269,7 @@ void *grab_compute_pose(void * arg)
     std::vector<std::string> chain_name(2); // LArm or RArm
     chain_name[0] = "LArm";
     chain_name[1] = "RArm";
-    
-    
+
     /** Initialization target hands*/
     
     std::string opt_name_file_color_target_path = opt_data_folder + "/" +"target/";
@@ -249,7 +289,6 @@ void *grab_compute_pose(void * arg)
     points1[1].setWorldCoordinates(-L1,L1, 0) ;
     points1[0].setWorldCoordinates(L1,L1, 0) ;
     points1[3].setWorldCoordinates(L1,-L1,0) ;
-    
     
     vpBlobsTargetTracker hand_tracker_l;
     hand_tracker_l.setName(chain_name[0]);
@@ -371,8 +410,6 @@ void *grab_compute_pose(void * arg)
     
     q_dot_real.push_back(q_temp);
     q_dot_real.push_back(q_temp);
-    
-    
     
     // Initialize the joint avoidance scheme from the joint limits
     std::vector<vpColVector> jointMin;
@@ -563,7 +600,7 @@ void *grab_compute_pose(void * arg)
         cMo_t = t_tracker.get_cMo()*tv_M_tp;
         //printPose("cMo qrcode: ", cMo_t);
         
-        vpHomogeneousMatrix offset(0.002, 0.025, 0.0, 0.0, 0.0, 0.0);
+        vpHomogeneousMatrix offset(0.013, -0.005, 0.0, 0.0, 0.0, 0.0);
         
         vpPoseVector _cpMtp(cp_M_cv*cMo_t*offset);
         //vpPoseVector _cpMtp(0.0, 0.0, 0.0,vpMath::rad(90.0),0.0,0.0);
@@ -590,15 +627,15 @@ void *grab_compute_pose(void * arg)
           vpXmlParserHomogeneousMatrix p; // Create a XML parser
           
           //vpHomogeneousMatrix cMo_t_des(-0.009528060139, 0.0, 0.3726390759, vpMath::rad(135.7879077), vpMath::rad(0.0), vpMath::rad(-8.483044353));
-          vpHomogeneousMatrix cMo_t_des(-0.01515260512, -0.02381981134, 0.3458028533, vpMath::rad(140.9292059), vpMath::rad(0.0), vpMath::rad(-3.302342968));
+          // vpHomogeneousMatrix cMo_t_des(-0.01515260512, -0.02381981134, 0.3458028533, vpMath::rad(140.9292059), vpMath::rad(0.0), vpMath::rad(-3.302342968));
           
-          if (p.save(cMo_t_des, learned_cMt_path + "/" + learned_cMt_filename , name_initial_cMt) != vpXmlParserHomogeneousMatrix::SEQUENCE_OK)
+          if (p.save(cMo_t, learning_folder + "/" + learned_cMt_filename , name_initial_cMt) != vpXmlParserHomogeneousMatrix::SEQUENCE_OK)
           {
-            std::cout << "Cannot save the Homogeneous matrix" << std::endl;
+            std::cout << "Cannot save the Homogeneous matrix in " << learned_cMt_path + "/" + learned_cMt_filename << std::endl;
             return 0;
           }
           printPose("The desired template pose: ", cMt);
-          std::cout << "is saved in " << learned_cMt_path + learned_cMt_filename << std::endl;
+          std::cout << "is saved in " << learning_folder + "/" + learned_cMt_filename << std::endl;
           return 0;
         }
       }
@@ -607,7 +644,7 @@ void *grab_compute_pose(void * arg)
       {
         if (click_done && button == vpMouseButton::button1 ) {
           
-          angles_head      = AL::ALValue::array(vpMath::rad(-15.2), vpMath::rad(17.6), vpMath::rad(10.3), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
+          angles_head      = AL::ALValue::array(vpMath::rad(-17.8), vpMath::rad(19.9), vpMath::rad(10.3), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
           fractionMaxSpeed  = 0.01f;
           robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
           
@@ -634,7 +671,7 @@ void *grab_compute_pose(void * arg)
           state = CalibrateLeftArm;
           
           // Small Plate
-          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(4.8), vpMath::rad(17.6), vpMath::rad(10.3), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
+          AL::ALValue angles_head      = AL::ALValue::array(vpMath::rad(4.7), vpMath::rad(18.1), vpMath::rad(11.9), vpMath::rad(0.0), vpMath::rad(6.0) , vpMath::rad(9.8), 0.0, 0.0  );
           
           float fractionMaxSpeed  = 0.01f;
           robot.getProxy()->setAngles(jointHeadNames_tot, angles_head, fractionMaxSpeed);
@@ -657,11 +694,8 @@ void *grab_compute_pose(void * arg)
         //                // Compute desired box position cMo_t_d
         //                cMo_t_d = cMo_t * M_offset;
         //                first_time_box_pose = false;
-        
         //            }
-        
         // vpDisplay::displayFrame(I, cMo_t_d, cam, 0.04, vpColor::red, 1);
-        
         // vpDisplay::displayFrame(I, cMo_hand[index_hand] * (cMo_t.inverse() *  cMo_hand[index_hand]).inverse() , cam, 0.04, vpColor::green, 1);
         
         if (click_done && button == vpMouseButton::button1 ) {
@@ -888,7 +922,6 @@ void *grab_compute_pose(void * arg)
           // state grasping but one of the tracker fails
           robot.stop(jointArmsNames_tot);
         }
-        
         
       }
       

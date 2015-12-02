@@ -15,6 +15,7 @@
 #include "collisionHandlerQueue.h"
 #include "texturePool.h"
 #include "openCVTexture.h"
+#include "cOnscreenText.h"
 
 
 class World
@@ -58,6 +59,7 @@ private:
   static AsyncTask::DoneStatus step_interval_manager(GenericAsyncTask *taskPtr, void *dataPtr);
   static void call_start(const Event* eventPtr, void* dataPtr);
   void restart_game();
+  void show_message(const std::string &text);
 
   PT(WindowFramework) m_windowFrameworkPtr;
   PT(CollisionRay) m_ballGroundRayPtr;
@@ -73,8 +75,10 @@ private:
   NodePath m_ballNp;
   NodePath m_ballSphereNp;
   NodePath m_ballGroundColNp;
-  NodePath  m_picPlane;
-  NodePath  m_axis;
+  NodePath m_picPlane;
+  NodePath m_axis;
+  NodePath m_finish;
+  COnscreenText m_central_msg;
   vector<NodePath> m_loseTriggers;
   CollisionTraverser m_cTrav;
   LVecBase3f m_ballV;

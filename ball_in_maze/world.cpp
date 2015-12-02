@@ -8,7 +8,6 @@
 #include <visp/vpQuaternionVector.h>
 
 #include "world.h"
-#include "cOnscreenText.h"
 #include "bitMask.h"
 #include "ambientLight.h"
 #include "directionalLight.h"
@@ -47,7 +46,8 @@ World::World(WindowFramework* windowFrameworkPtr)
     m_init(false),
     m_numAreas(10),
     m_areas(),
-    m_commands()
+    m_commands(),
+    m_central_msg("central_msg")
 {
   // preconditions
   if(m_windowFrameworkPtr == NULL)
@@ -69,14 +69,26 @@ World::World(WindowFramework* windowFrameworkPtr)
   m_titleNp = title.generate();
 
 
-  COnscreenText instructions("instructions");
-  instructions.set_text("Mouse pointer tilts the board");
-  instructions.set_pos(LVecBase2f(-1.3, 0.95));
-  instructions.set_fg(Colorf(1,1,1,1));
-  instructions.set_align(TextNode::A_left);
-  instructions.set_scale(0.05);
-  instructions.reparent_to(m_windowFrameworkPtr->get_aspect_2d());
-  m_instructionsNp = instructions.generate();
+  //  COnscreenText instructions("instructions");
+  //  instructions.set_text("Mouse pointer tilts the board");
+  //  instructions.set_pos(LVecBase2f(-1.3, 0.95));
+  //  instructions.set_fg(Colorf(1,1,1,1));
+  //  instructions.set_align(TextNode::A_left);
+  //  instructions.set_scale(0.05);
+  //  instructions.reparent_to(m_windowFrameworkPtr->get_aspect_2d());
+  //  m_instructionsNp = instructions.generate();
+
+  // Central messages
+  m_central_msg.set_text("START");
+  m_central_msg.set_pos(LVecBase2f(0.0, 0.0));
+  m_central_msg.set_fg(Colorf(1.0,0,0,1));
+  m_central_msg.set_align(TextNode::A_center);
+  m_central_msg.set_scale(0.3);
+  m_central_msg.reparent_to(m_windowFrameworkPtr->get_aspect_2d());
+  m_central_msg.hide();
+//  m_central_text = m_central_msg.generate();
+//  m_central_text.hide();
+//  m_central_text.hide_bounds();
 
   // Escape quits
   m_windowFrameworkPtr->enable_keyboard();
@@ -91,20 +103,17 @@ World::World(WindowFramework* windowFrameworkPtr)
   PT(Camera)camera_main    = m_windowFrameworkPtr->get_camera(0);
   PT(PerspectiveLens) lens = DCAST(PerspectiveLens,camera_main->get_lens());
   //lens->set_fov(60.9,47.6);
-  lens->set_fov(49.85,38.37);
+  //lens->set_fov(49.85,38.37);
+  lens->set_fov(49.52,38.16);
 
   //lens->set_film_offset(2,8);
 
   //Horizontal Fov Angle: 49.85818633
   //Vertical Fov Angle: 38.37696468
 
-
-
   // Get the location of the executable file I'm running:
   Filename mydir = ExecutionEnvironment::get_binary_name();
   mydir = mydir.get_dirname();
-
-
 
   // Load the maze and place it in the scene
   NodePath modelsNp = m_windowFrameworkPtr->get_panda_framework()->get_models();
@@ -176,6 +185,10 @@ World::World(WindowFramework* windowFrameworkPtr)
   m_mazeGroundNp = m_mazeNp.find("**/ground_collide");
   m_mazeGroundNp.node()->set_into_collide_mask(BitMask32::bit(1));
 
+  // Finish line trigger - this trigger is not tagged and so we need to hide by hand
+  m_finish = m_mazeNp.find("**/finish_collide");
+  m_finish.node()->set_into_collide_mask(BitMask32::bit(0));
+  m_finish.hide();
 
   // Load the ball and attach it to the scene
   // It is on a root dummy node so that we can rotate the ball itself without
@@ -289,9 +302,9 @@ World::World(WindowFramework* windowFrameworkPtr)
   //  m_picPlane.set_texture(TexturePool::load_texture("/udd/gclaudio/romeo/cpp/workspace/SolveMaze_Romeo/ball_in_maze/models/baked_maze.jpg"));
 
   // Load the maze and place it in the scene
-  // m_axis = m_windowFrameworkPtr->load_model(modelsNp, "zup-axis");
-  // m_axis.reparent_to(renderNp);
-  // m_axis.set_pos_hpr(cameraNp, 0, 20, 0,0.0 ,0.0,0.0);
+  //  m_axis = m_windowFrameworkPtr->load_model(modelsNp, "zup-axis");
+  //  m_axis.reparent_to(renderNp);
+  //  m_axis.set_pos_hpr(cameraNp, 0, 20, 0,0.0 ,0.0,0.0);
 
 
   // Finally, we call start for more initialization
@@ -339,8 +352,6 @@ void World::start()
   q.set_from_axis_angle_rad(theta, u);
 
   m_mazeNp.set_pos_quat(cameraNp,pos,q);
-
-
 
 
   std::cout <<" PANDA THREAD: Start initalization." << std::endl;
@@ -428,7 +439,7 @@ void World::start()
   //  noiseplane.set_alpha_scale(1);
   //  noiseplane.set_pos_hpr(0, 0, 0, 0, 0, 0);
 
-
+  show_message("");
   // Create the movement task, but first make sure it is not already running
   PT(GenericAsyncTask) rollTaskPtr = DCAST(GenericAsyncTask, AsyncTaskManager::get_global_ptr()->find_task("rollTask"));
   if(rollTaskPtr == NULL)
@@ -462,7 +473,6 @@ void World::ground_collide_handler(const CollisionEntry& colEntry)
     UP = norm;
     m_init = true;
     return;
-
   }
 
   // Then that vector is crossed with the surface normal to get a vector that
@@ -533,8 +543,14 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
     if(name == "wall_collide")        { wall_collide_handler(*entryPtr);   }
     else if(name == "ground_collide") { ground_collide_handler(*entryPtr); }
     else if(name == "loseTrigger")    { lose_game(*entryPtr);              }
-  }
+    else if(name == "finish_collide")
+    {
+      show_message("YOU WIN!!");
+      m_central_msg.show();
 
+    }
+
+  }
 
   //   // Read the mouse position and tilt the maze accordingly
   //   PT(MouseWatcher) mouseWatcherPtr = DCAST(MouseWatcher, m_windowFrameworkPtr->get_mouse().node());
@@ -668,7 +684,7 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
     //std::cout << "The point " << ip << " is " << (m_areas[i].isInside(ip) ? "inside":"outside") << " the polygon"<< i << std::endl;
     if (m_areas[i].isInside(ip))
     {
-       std::cout << "Inside numero: " << i << std::endl;
+      // std::cout << "Inside numero: " << i << std::endl;
       // std::cout << "Direction: " << m_commands[i]<< std::endl;
 
       pthread_mutex_lock(&m_mutex_com);
@@ -709,7 +725,7 @@ AsyncTask::DoneStatus World::roll(GenericAsyncTask* taskPtr)
 
   if (restart)
   {
-    std::cout << "PRESSED R _______________________" <<std::endl;
+    std::cout << "******** RESTARTING GAME **********" <<std::endl;
     m_areas.clear();
     restart_game();
   }
@@ -801,6 +817,11 @@ void World::restart_game()
 {
 
   std::cout << "RESTART GAME ***********************" <<std::endl;
+  // Move the maze in a not visible part
+  LVecBase3 pos(0.0,-40.0,0.0);
+  m_mazeNp.set_pos(cameraNp,pos);
+  m_ballRootNp.set_pos(cameraNp,pos);
+
 
   // Stop the maze task
   PT(GenericAsyncTask) rollTaskPtr = DCAST(GenericAsyncTask, AsyncTaskManager::get_global_ptr()->find_task("rollTask"));
@@ -825,6 +846,9 @@ void World::restart_game()
       AsyncTaskManager::get_global_ptr()->add(intervalManagerTaskPtr);
     }
   }
+
+  show_message("RESTART GAME");
+
 }
 
 
@@ -881,4 +905,17 @@ void World::call_start(const Event* eventPtr, void* dataPtr)
   }
 
   static_cast<World*>(dataPtr)->start();
+}
+
+
+void World::show_message(const std::string &text = "")
+{
+  if (text.empty())
+    m_central_msg.hide();
+  else
+  {
+    m_central_msg.set_text(text);
+    m_central_msg.show();
+  }
+  return;
 }
