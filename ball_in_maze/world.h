@@ -36,7 +36,7 @@ private:
 
   // Some constants for the program
   static const int NB_HOLES     =  6; // Note: Holes in the maze
-  static const int ACCEL        = 70; // Acceleration in ft/sec/sec
+  static const int ACCEL        = 70; // Acceleration in ft/sec/sec //70
   static const int MAX_SPEED    =  5; // Max speed in ft/sec
   static const int MAX_SPEED_SQ = 25; // Squared to make it easier to use lengthSquared
   // Instead of length

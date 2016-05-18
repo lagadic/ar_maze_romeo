@@ -12,7 +12,7 @@ find_package(PythonLibs REQUIRED)
 find_path(PANDA3D_INCLUDE_DIR pandaFramework.h
     /usr/local/include/panda3d
     /usr/include/panda3d
-	/Developer/Panda3D/include
+    /Developer/Panda3D/include
 )
 
 # Add our stuff to the build system
