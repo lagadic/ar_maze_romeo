@@ -892,7 +892,7 @@ void *grab_compute_pose(void * arg)
               first_time_arm_servo[i] = false;
             }
 
-            q_dot_arm[i] =  - servo_larm[i]->computeControlLaw(servo_arm_time_init[i]);
+            q_dot_arm[i] =  - servo_larm[i]->computeControlLaw(vpTime::measureTimeSecond() - servo_arm_time_init[i]);
 
             q_dot_real[0] = robot.getJointVelocity(jointNames_arm[0]);
             q_dot_real[1] = robot.getJointVelocity(jointNames_arm[1]);
