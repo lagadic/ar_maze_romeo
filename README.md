@@ -10,8 +10,9 @@ The two arms, 14 joints in total, are holding a tray from two handles. A known p
 ## How to compile:
 You will need:
 * [ViSP](https://visp.inria.fr/)
-* [visp_naoqi](https://github.com/lagadic/visp_naoqi)
+* [visp_naoqi](https://github.com/lagadic/visp_naoqi) compiled with naoqi 2.3
 * [romeo_tk](https://github.com/lagadic/romeo_tk)
+* [Panda3D](https://www.panda3d.org/)
 
 
   ```
