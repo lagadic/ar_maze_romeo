@@ -14,7 +14,6 @@ You will need:
 * [romeo_tk](https://github.com/lagadic/romeo_tk)
 * [Panda3D](https://www.panda3d.org/)
 
-
   ```
   $ qibuild configure --release -c toolchain_romeo_2_3 -Dvisp_naoqi_DIR=/udd/fspindle/soft/romeo/workspace_eutelsat/visp_naoqi/build-toolchain_romeo_2_3-release/sdk/cmake -DVISP_DIR=/local/soft/ViSP/visp-build-release/ -DROMEO_TK_DIR=/udd/fspindle/soft/romeo/workspace_eutelsat/romeo_tk/build-toolchain_romeo_2_3-release/sdk/cmake/
   
