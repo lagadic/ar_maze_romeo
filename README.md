@@ -1,4 +1,4 @@
-# ar_maze_romeo
+# Romeo two handed manipulation
 
 This is an augmented reality demonstration developped for the robot Romeo: a two handed-manipulation for holding a tray, in order to solve a ball-in-maze game in augmented reality.
 
